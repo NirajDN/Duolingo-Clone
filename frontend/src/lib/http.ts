@@ -6,38 +6,69 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function pingHealth(): Promise<boolean> {
+function timeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
+async function fetchPing(url: string, timeoutMs: number): Promise<Response | null> {
   try {
-    const res = await fetch(`${API_BASE}/health/`, {
+    return await fetch(url, {
+      method: 'GET',
       cache: 'no-store',
-      signal: AbortSignal.timeout(15000),
+      mode: 'cors',
+      credentials: 'omit',
+      signal: timeoutSignal(timeoutMs),
     });
-    if (res.ok) {
-      const data = await res.json();
-      return data?.status === 'ok';
-    }
-    // Server responded (e.g. 404 before health deploy) — still awake
-    if (res.status === 404) return true;
-    return false;
   } catch {
-    return false;
+    return null;
   }
 }
 
-/** Wake Render free-tier backend — parallel pings, fast retries. */
-export async function wakeBackend(maxAttempts = 10): Promise<boolean> {
+async function pingOnce(timeoutMs = 30000): Promise<boolean> {
+  const urls = [`${API_BASE}/health/`, `${API_BASE}/leaderboard/`];
+
+  for (const url of urls) {
+    const res = await fetchPing(url, timeoutMs);
+    if (!res || res.status >= 502) continue;
+
+    if (url.endsWith('/health/')) {
+      if (res.status === 404) return true;
+      if (res.ok) {
+        try {
+          const data = await res.json();
+          if (data?.status === 'ok') return true;
+        } catch {
+          return true;
+        }
+      }
+      continue;
+    }
+
+    if (res.ok) return true;
+  }
+
+  return false;
+}
+
+/** Wake Render free-tier backend — keeps trying until success or max time. */
+export async function wakeBackend(maxAttempts = 25): Promise<boolean> {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const results = await Promise.all([pingHealth(), pingHealth(), pingHealth()]);
-    if (results.some(Boolean)) return true;
-    await wait(Math.min(800 + attempt * 400, 3000));
+    const timeoutMs = Math.min(20000 + attempt * 2000, 45000);
+    if (await pingOnce(timeoutMs)) return true;
+    await wait(Math.min(1500 + attempt * 300, 4000));
   }
   return false;
 }
 
 export async function ensureBackendReady(): Promise<void> {
-  const ready = await wakeBackend(12);
+  const ready = await wakeBackend(30);
   if (!ready) {
-    throw new Error('Server is waking up. Please wait 20 seconds and try again.');
+    throw new Error('Server is still starting. Wait 30 seconds and tap Retry.');
   }
 }
 
@@ -47,7 +78,7 @@ export async function parseJsonResponse<T = unknown>(res: Response): Promise<T> 
     return JSON.parse(text) as T;
   } catch {
     if (text.trimStart().startsWith('<')) {
-      throw new Error('Server is waking up. Please wait a moment and try again.');
+      throw new Error('Server is still starting. Please wait and try again.');
     }
     throw new Error('Unexpected server response. Please try again.');
   }
@@ -63,7 +94,7 @@ async function responseLooksLikeHtml(res: Response): Promise<boolean> {
 export async function fetchWithRetry(
   url: string,
   options: RequestInit = {},
-  retries = 4
+  retries = 8
 ): Promise<Response> {
   let lastError: Error | null = null;
 
@@ -71,7 +102,7 @@ export async function fetchWithRetry(
     try {
       const res = await fetch(url, {
         ...options,
-        signal: AbortSignal.timeout(30000),
+        signal: options.signal ?? timeoutSignal(45000),
       });
 
       const shouldRetryStatus =
@@ -80,7 +111,7 @@ export async function fetchWithRetry(
       const isHtml = await responseLooksLikeHtml(res);
 
       if ((shouldRetryStatus || isHtml) && attempt < retries) {
-        await wait(1000 + attempt * 1000);
+        await wait(1500 + attempt * 1500);
         continue;
       }
 
@@ -88,7 +119,7 @@ export async function fetchWithRetry(
     } catch (err) {
       lastError = err instanceof Error ? err : new Error('Network request failed');
       if (attempt < retries) {
-        await wait(1000 + attempt * 1000);
+        await wait(1500 + attempt * 1500);
       }
     }
   }

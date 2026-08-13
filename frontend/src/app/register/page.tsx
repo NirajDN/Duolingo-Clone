@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { wakeBackend } from '@/lib/http';
+import { useBackendWake } from '@/hooks/useBackendWake';
 import { MascotOwl } from '@/components/MascotOwl';
 import { GoogleSignIn } from '@/components/GoogleSignIn';
-import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { ServerStatusBanner } from '@/components/ServerStatusBanner';
+import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 function PasswordStrength({ password }: { password: string }) {
   const checks = [
@@ -29,38 +30,19 @@ function PasswordStrength({ password }: { password: string }) {
 
 export default function RegisterPage() {
   const { register, loginWithGoogle } = useAuth();
+  const { serverReady, wakingServer, retryWake } = useBackendWake();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [serverReady, setServerReady] = useState(false);
-  const [wakingServer, setWakingServer] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setWakingServer(true);
-      const ok = await wakeBackend();
-      if (!cancelled) {
-        setServerReady(ok);
-        setWakingServer(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleWakeServer = async () => {
-    setWakingServer(true);
+  const handleRetry = async () => {
     setError('');
-    const ok = await wakeBackend();
-    setServerReady(ok);
-    setWakingServer(false);
+    const ok = await retryWake();
     if (!ok) {
-      setError('Server is still waking up. Wait 30 seconds and try again.');
+      setError('Server is still starting. Wait 30 seconds and try again.');
     }
   };
 
@@ -110,26 +92,11 @@ export default function RegisterPage() {
               <p className="text-gray-500 font-bold mt-1 text-sm">Join millions of learners today! 🌍</p>
             </div>
 
-            {wakingServer && (
-              <div className="mb-5 flex items-center gap-2 bg-amber-50 border-2 border-amber-200 text-amber-800 px-4 py-3 rounded-2xl font-bold text-sm">
-                <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
-                Connecting to server… (Render free tier may take ~30s)
-              </div>
-            )}
-
-            {!wakingServer && !serverReady && (
-              <div className="mb-5 flex flex-col gap-2 bg-amber-50 border-2 border-amber-200 text-amber-800 px-4 py-3 rounded-2xl font-bold text-sm">
-                <span>Server is waking up. Wait a moment before signing up.</span>
-                <button
-                  type="button"
-                  onClick={handleWakeServer}
-                  className="flex items-center justify-center gap-2 text-xs font-black text-amber-900 underline"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Retry connection
-                </button>
-              </div>
-            )}
+            <ServerStatusBanner
+              wakingServer={wakingServer}
+              serverReady={serverReady}
+              onRetry={handleRetry}
+            />
 
             {/* Error */}
             {error && (
@@ -208,7 +175,7 @@ export default function RegisterPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Creating account...
+                    {serverReady ? 'Creating account...' : 'Connecting to server...'}
                   </>
                 ) : (
                   'CREATE ACCOUNT'
@@ -226,7 +193,6 @@ export default function RegisterPage() {
             <GoogleSignIn
               buttonId="register-google"
               disabled={loading}
-              serverReady={serverReady}
               onSuccess={async (credential) => {
                 setError('');
                 setLoading(true);

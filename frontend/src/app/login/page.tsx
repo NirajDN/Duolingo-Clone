@@ -1,46 +1,28 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { wakeBackend } from '@/lib/http';
+import { useBackendWake } from '@/hooks/useBackendWake';
 import { MascotOwl } from '@/components/MascotOwl';
 import { GoogleSignIn } from '@/components/GoogleSignIn';
-import { Eye, EyeOff, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { ServerStatusBanner } from '@/components/ServerStatusBanner';
+import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const { login, loginWithGoogle } = useAuth();
+  const { serverReady, wakingServer, retryWake } = useBackendWake();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [serverReady, setServerReady] = useState(false);
-  const [wakingServer, setWakingServer] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setWakingServer(true);
-      const ok = await wakeBackend();
-      if (!cancelled) {
-        setServerReady(ok);
-        setWakingServer(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleWakeServer = async () => {
-    setWakingServer(true);
+  const handleRetry = async () => {
     setError('');
-    const ok = await wakeBackend();
-    setServerReady(ok);
-    setWakingServer(false);
+    const ok = await retryWake();
     if (!ok) {
-      setError('Server is still waking up. Wait 30 seconds and try again.');
+      setError('Server is still starting. Wait 30 seconds and try again.');
     }
   };
 
@@ -63,20 +45,16 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#58CC02] via-[#46a302] to-[#3d8c02] flex items-center justify-center p-4">
-      {/* Background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Card */}
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-          {/* Top accent */}
           <div className="h-2 bg-gradient-to-r from-[#58CC02] via-[#FFC800] to-[#FF4B4B]" />
 
           <div className="p-8">
-            {/* Logo + Mascot */}
             <div className="text-center mb-8">
               <div className="flex justify-center mb-3">
                 <MascotOwl emotion="happy" width={80} height={80} />
@@ -85,29 +63,12 @@ export default function LoginPage() {
               <p className="text-gray-500 font-bold mt-1 text-sm">Log in to continue your streak 🔥</p>
             </div>
 
-            {/* Server wake-up banner */}
-            {wakingServer && (
-              <div className="mb-5 flex items-center gap-2 bg-amber-50 border-2 border-amber-200 text-amber-800 px-4 py-3 rounded-2xl font-bold text-sm">
-                <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
-                Connecting to server… (Render free tier may take ~30s)
-              </div>
-            )}
+            <ServerStatusBanner
+              wakingServer={wakingServer}
+              serverReady={serverReady}
+              onRetry={handleRetry}
+            />
 
-            {!wakingServer && !serverReady && (
-              <div className="mb-5 flex flex-col gap-2 bg-amber-50 border-2 border-amber-200 text-amber-800 px-4 py-3 rounded-2xl font-bold text-sm">
-                <span>Server is waking up. Wait a moment before logging in.</span>
-                <button
-                  type="button"
-                  onClick={handleWakeServer}
-                  className="flex items-center justify-center gap-2 text-xs font-black text-amber-900 underline"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Retry connection
-                </button>
-              </div>
-            )}
-
-            {/* Error */}
             {error && (
               <div className="mb-5 flex items-center gap-2 bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-2xl font-bold text-sm">
                 <AlertCircle className="w-4 h-4 shrink-0" />
@@ -116,7 +77,6 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Username */}
               <div>
                 <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">
                   Username or Email
@@ -132,7 +92,6 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* Password */}
               <div>
                 <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">
                   Password
@@ -157,7 +116,6 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Submit */}
               <button
                 id="login-submit"
                 type="submit"
@@ -167,7 +125,7 @@ export default function LoginPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Logging in...
+                    {serverReady ? 'Logging in...' : 'Connecting to server...'}
                   </>
                 ) : (
                   'LOG IN'
@@ -175,7 +133,6 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* Divider */}
             <div className="flex items-center gap-3 my-6">
               <div className="flex-1 h-px bg-gray-200" />
               <span className="text-xs font-black text-gray-400 uppercase tracking-widest">or</span>
@@ -185,7 +142,6 @@ export default function LoginPage() {
             <GoogleSignIn
               buttonId="login-google"
               disabled={loading}
-              serverReady={serverReady}
               onSuccess={async (credential) => {
                 setError('');
                 setLoading(true);
@@ -200,7 +156,6 @@ export default function LoginPage() {
               onError={setError}
             />
 
-            {/* Register link */}
             <p className="text-center mt-6 text-sm font-bold text-gray-500">
               Don&apos;t have an account?{' '}
               <Link href="/register" className="text-[#1CB0F6] hover:underline font-black">
@@ -210,7 +165,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center mt-6 text-white/70 text-xs font-bold">
           🦜 Duolingo Clone
         </p>

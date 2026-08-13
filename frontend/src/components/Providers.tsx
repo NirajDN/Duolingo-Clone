@@ -9,7 +9,7 @@ import { wakeBackend } from '@/lib/http';
 
 function BackendPrewarm() {
   useEffect(() => {
-    wakeBackend(8);
+    wakeBackend(15);
   }, []);
   return null;
 }

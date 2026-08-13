@@ -4,14 +4,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { Loader2 } from 'lucide-react';
 import { GOOGLE_CLIENT_ID } from '@/lib/constants';
-import { ensureBackendReady } from '@/lib/http';
 
 interface GoogleSignInProps {
   onSuccess: (credential: string) => Promise<void>;
   onError: (message: string) => void;
   disabled?: boolean;
   buttonId?: string;
-  serverReady?: boolean;
 }
 
 export function GoogleSignIn({
@@ -19,7 +17,6 @@ export function GoogleSignIn({
   onError,
   disabled = false,
   buttonId,
-  serverReady = true,
 }: GoogleSignInProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
@@ -51,7 +48,6 @@ export function GoogleSignIn({
 
     setGoogleLoading(true);
     try {
-      await ensureBackendReady();
       await onSuccess(response.credential);
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Google sign-in failed.');
@@ -64,8 +60,6 @@ export function GoogleSignIn({
     return null;
   }
 
-  const blocked = disabled || googleLoading || !serverReady;
-
   return (
     <div id={buttonId} ref={containerRef} className="w-full relative min-h-[44px]">
       {googleLoading && (
@@ -74,15 +68,9 @@ export function GoogleSignIn({
         </div>
       )}
 
-      {!serverReady && !googleLoading && (
-        <p className="mb-2 text-center text-xs font-bold text-amber-700">
-          Waiting for server… Google sign-in unlocks when ready.
-        </p>
-      )}
-
       <div
         className={`w-full flex justify-center overflow-hidden ${
-          blocked ? 'opacity-60 pointer-events-none' : ''
+          disabled || googleLoading ? 'opacity-60 pointer-events-none' : ''
         }`}
       >
         {mounted ? (

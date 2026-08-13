@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { API_BASE, fetchWithRetry, parseJsonResponse } from '@/lib/http';
+import { API_BASE, fetchWithRetry, parseJsonResponse, ensureBackendReady } from '@/lib/http';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface AuthUser {
@@ -83,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const login = useCallback(async (username: string, password: string) => {
+    await ensureBackendReady();
     const data = await authRequest<{
       access: string;
       refresh: string;
@@ -98,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router, persistSession]);
 
   const register = useCallback(async (username: string, email: string, password: string) => {
+    await ensureBackendReady();
     const data = await authRequest<{
       access: string;
       refresh: string;
@@ -113,6 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router, persistSession]);
 
   const loginWithGoogle = useCallback(async (idToken: string) => {
+    await ensureBackendReady();
     const data = await authRequest<{
       access: string;
       refresh: string;
