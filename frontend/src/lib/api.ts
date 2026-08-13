@@ -228,6 +228,50 @@ export function prefetchProfile(userId?: number) {
 export function prefetchSecondaryPages(userId?: number) {
   prefetchLeaderboard(userId);
   prefetchProfile(userId);
+  prefetchUnlockedLessons();
+}
+
+function lessonCacheKey(skillId: number) {
+  return `duo_lesson_${skillId}`;
+}
+
+export function getCachedSkillLesson(skillId: number): Lesson | null {
+  return readStaleCache<Lesson>(lessonCacheKey(skillId), getUserId());
+}
+
+async function refreshSkillLesson(skillId: number): Promise<Lesson> {
+  const data = await authJson<Lesson>(`${API_BASE}/skills/${skillId}/lesson/`);
+  writeCache(lessonCacheKey(skillId), data, getUserId());
+  return data;
+}
+
+export function prefetchSkillLesson(skillId: number) {
+  void startBackendWake();
+  void refreshSkillLesson(skillId).catch(() => {});
+}
+
+export function prefetchUnlockedLessons() {
+  const path = getCachedPath();
+  if (!path) return;
+  let count = 0;
+  for (const unit of path) {
+    for (const skill of unit.skills) {
+      if (skill.is_unlocked && count < 5) {
+        prefetchSkillLesson(skill.id);
+        count += 1;
+      }
+    }
+  }
+}
+
+export async function fetchSkillLesson(skillId: number): Promise<Lesson> {
+  return fetchWithStaleCache(lessonCacheKey(skillId), () => refreshSkillLesson(skillId));
+}
+
+export function invalidateSkillLessonCache(skillId: number) {
+  const userId = getUserId();
+  if (!userId || typeof window === 'undefined') return;
+  localStorage.removeItem(`${lessonCacheKey(skillId)}_${userId}`);
 }
 
 export async function fetchDashboard(): Promise<DashboardData> {
@@ -257,16 +301,18 @@ export async function fetchPath(): Promise<Unit[]> {
   return data.path;
 }
 
-export async function fetchSkillLesson(skillId: number): Promise<Lesson> {
-  return authJson<Lesson>(`${API_BASE}/skills/${skillId}/lesson/`);
-}
-
-export async function submitLessonResult(lessonId: number, score: number, heartsLost: number) {
+export async function submitLessonResult(
+  lessonId: number,
+  score: number,
+  heartsLost: number,
+  skillId?: number
+) {
   const result = await authJson(`${API_BASE}/lessons/${lessonId}/complete/`, {
     method: 'POST',
     body: JSON.stringify({ score, hearts_lost: heartsLost }),
   });
   invalidateUserCache();
+  if (skillId) invalidateSkillLessonCache(skillId);
   return result;
 }
 

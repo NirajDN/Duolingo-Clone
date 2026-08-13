@@ -8,6 +8,7 @@ import {
   Unit,
   Skill,
   UserStats,
+  prefetchSkillLesson,
 } from '@/lib/api';
 import { AppShell } from '@/components/AppShell';
 import PathSkeleton from '@/components/PathSkeleton';
@@ -42,6 +43,10 @@ export default function HomePage() {
     if (authLoading || !user) return;
     loadData();
   }, [authLoading, user, loadData]);
+
+  useEffect(() => {
+    if (selectedSkill) prefetchSkillLesson(selectedSkill.id);
+  }, [selectedSkill]);
 
   const getHorizontalOffset = (index: number) => {
     const offsets = [0, -45, -30, 0, 30, 45, 20, 0, -25];
@@ -199,6 +204,8 @@ export default function HomePage() {
             <div className="space-y-3">
               <Link
                 href={`/lesson/${selectedSkill.id}${legendaryMode ? '?legendary=true' : ''}`}
+                onMouseEnter={() => prefetchSkillLesson(selectedSkill.id)}
+                onFocus={() => prefetchSkillLesson(selectedSkill.id)}
                 className="w-full btn-duo btn-duo-green py-3 text-lg flex items-center justify-center space-x-2"
               >
                 <Zap className="w-5 h-5 fill-white" />

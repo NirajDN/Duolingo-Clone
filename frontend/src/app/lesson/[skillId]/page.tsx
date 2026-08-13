@@ -4,8 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import confetti from 'canvas-confetti';
 import { X, Heart, Check, Volume2, Clock } from 'lucide-react';
-import { fetchSkillLesson, submitLessonResult, Lesson, Exercise } from '@/lib/api';
+import { fetchSkillLesson, getCachedSkillLesson, submitLessonResult, Lesson, Exercise } from '@/lib/api';
 import { MascotOwl } from '@/components/MascotOwl';
+import { RefreshCw } from 'lucide-react';
 
 interface Option {
   text: string;
@@ -26,7 +27,8 @@ export default function LessonPlayerPage() {
   const skillId = Number(params.skillId);
   const isLegendary = searchParams.get('legendary') === 'true';
 
-  const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [lesson, setLesson] = useState<Lesson | null>(() => getCachedSkillLesson(skillId));
+  const [loadError, setLoadError] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [hearts, setHearts] = useState(5);
   const [heartsLost, setHeartsLost] = useState(0);
@@ -50,18 +52,34 @@ export default function LessonPlayerPage() {
 
   // Load Lesson Data
   useEffect(() => {
+    let cancelled = false;
+
     async function loadLesson() {
+      setLoadError('');
       try {
         const data = await fetchSkillLesson(skillId);
+        if (cancelled) return;
         setLesson(data);
         if (data.exercises.length > 0) {
           setupExercise(data.exercises[0]);
         }
       } catch (err) {
         console.error('Error fetching lesson:', err);
+        if (!cancelled) {
+          setLoadError(err instanceof Error ? err.message : 'Failed to load lesson.');
+        }
       }
     }
+
+    const cached = getCachedSkillLesson(skillId);
+    if (cached?.exercises.length) {
+      setupExercise(cached.exercises[0]);
+    }
+
     loadLesson();
+    return () => {
+      cancelled = true;
+    };
   }, [skillId]);
 
   // Legendary Mode Timer
@@ -143,18 +161,46 @@ export default function LessonPlayerPage() {
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
       try {
         const score = Math.round(((lesson.exercises.length - heartsLost) / lesson.exercises.length) * 100);
-        await submitLessonResult(lesson.id, Math.max(0, score), heartsLost);
+        await submitLessonResult(lesson.id, Math.max(0, score), heartsLost, skillId);
       } catch (err) {
         console.error('Error submitting lesson results:', err);
       }
     }
   };
 
+  if (loadError && !lesson) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-duo-dark space-y-4 px-6 text-center">
+        <MascotOwl emotion="sad" width={90} height={90} />
+        <p className="font-extrabold text-lg text-gray-700 dark:text-gray-200">{loadError}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="btn-duo btn-duo-green px-6 py-3 flex items-center gap-2"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
   if (!lesson || !currentExercise) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-duo-dark space-y-4">
-        <MascotOwl emotion="happy" className="animate-bounce" />
-        <p className="font-extrabold text-xl text-duo-green">Preparing lesson...</p>
+      <div className="min-h-screen flex flex-col bg-white dark:bg-duo-dark">
+        <header className="max-w-4xl mx-auto w-full px-4 pt-6 pb-4">
+          <div className="bg-gray-200 dark:bg-duo-dark-border h-4 rounded-full overflow-hidden animate-pulse" />
+        </header>
+        <main className="max-w-2xl mx-auto w-full flex-1 px-4 py-8 space-y-6 animate-pulse">
+          <div className="h-8 bg-gray-200 dark:bg-duo-dark-border rounded-xl w-3/4" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="h-24 bg-gray-200 dark:bg-duo-dark-border rounded-2xl" />
+            <div className="h-24 bg-gray-200 dark:bg-duo-dark-border rounded-2xl" />
+            <div className="h-24 bg-gray-200 dark:bg-duo-dark-border rounded-2xl" />
+          </div>
+        </main>
+        <footer className="p-6 border-t-2 border-duo-gray dark:border-duo-dark-border">
+          <p className="text-center font-extrabold text-duo-green">Preparing lesson...</p>
+        </footer>
       </div>
     );
   }

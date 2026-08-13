@@ -194,7 +194,15 @@ def get_dashboard(request):
 @permission_classes([IsAuthenticated])
 def get_skill_lesson(request, skill_id):
     """GET /api/skills/:id/lesson/ - Fetch/generate lesson for a skill."""
-    skill = get_object_or_404(Skill, pk=skill_id)
+    skill = get_object_or_404(
+        Skill.objects.prefetch_related(
+            Prefetch(
+                'lessons',
+                queryset=Lesson.objects.prefetch_related('exercises').order_by('order'),
+            )
+        ),
+        pk=skill_id,
+    )
     lesson = skill.lessons.first()
     if not lesson:
         return Response({'detail': 'No lessons found for this skill.'}, status=status.HTTP_404_NOT_FOUND)
