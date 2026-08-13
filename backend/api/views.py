@@ -6,6 +6,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -150,8 +151,26 @@ def get_me(request):
 def get_path(request):
     """GET /api/path/ - Full learning path with lock/unlock & progress state."""
     user = request.user
-    units = Unit.objects.prefetch_related('skills').all()
-    serializer = UnitPathSerializer(units, many=True, context={'user': user})
+    units = (
+        Unit.objects.prefetch_related(
+            Prefetch(
+                'skills',
+                queryset=Skill.objects.prefetch_related('lessons').order_by('order'),
+            )
+        )
+        .order_by('order')
+    )
+    progress_map = {
+        p.skill_id: p
+        for p in UserProgress.objects.filter(user=user).only(
+            'skill_id', 'is_unlocked', 'is_completed', 'completed_lessons', 'current_crown'
+        )
+    }
+    serializer = UnitPathSerializer(
+        units,
+        many=True,
+        context={'user': user, 'progress_map': progress_map},
+    )
     return Response(serializer.data)
 
 

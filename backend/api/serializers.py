@@ -43,6 +43,9 @@ class SkillPathSerializer(serializers.ModelSerializer):
         ]
 
     def get_user_progress(self, obj):
+        progress_map = self.context.get('progress_map')
+        if progress_map is not None:
+            return progress_map.get(obj.id)
         user = self.context.get('user')
         if not user or user.is_anonymous:
             return None
@@ -68,7 +71,8 @@ class SkillPathSerializer(serializers.ModelSerializer):
         return progress.current_crown if progress else 0
 
     def get_total_lessons(self, obj):
-        return obj.lessons.count() or 1
+        lessons = obj.lessons.all()
+        return len(lessons) or 1
 
 
 class UnitPathSerializer(serializers.ModelSerializer):

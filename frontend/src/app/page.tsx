@@ -2,7 +2,15 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { fetchPath, fetchUserStats, Unit, Skill, UserStats } from '@/lib/api';
+import {
+  fetchPath,
+  fetchUserStats,
+  getCachedPath,
+  getCachedStats,
+  Unit,
+  Skill,
+  UserStats,
+} from '@/lib/api';
 import { AppShell } from '@/components/AppShell';
 import { MascotOwl } from '@/components/MascotOwl';
 import { useAuth } from '@/context/AuthContext';
@@ -10,17 +18,17 @@ import { Lock, Crown, Star, Play, Zap, RefreshCw } from 'lucide-react';
 
 export default function HomePage() {
   const { user, loading: authLoading } = useAuth();
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [stats, setStats] = useState<UserStats | null>(null);
+  const [units, setUnits] = useState<Unit[]>(() => getCachedPath() ?? []);
+  const [stats, setStats] = useState<UserStats | null>(() => getCachedStats());
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [legendaryMode, setLegendaryMode] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [pathLoading, setPathLoading] = useState(() => !(getCachedPath()?.length));
   const [error, setError] = useState('');
 
   const loadData = useCallback(async () => {
+    setError('');
+    if (!units.length) setPathLoading(true);
     try {
-      setLoading(true);
-      setError('');
       const [pathData, statsData] = await Promise.all([fetchPath(), fetchUserStats()]);
       setUnits(pathData);
       setStats(statsData);
@@ -28,7 +36,7 @@ export default function HomePage() {
       console.error('Error loading home data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load learning path.');
     } finally {
-      setLoading(false);
+      setPathLoading(false);
     }
   }, []);
 
@@ -42,6 +50,9 @@ export default function HomePage() {
     return offsets[index % offsets.length];
   };
 
+  const showPath = units.length > 0;
+  const showFullLoader = pathLoading && !showPath;
+
   return (
     <AppShell
       streak={stats?.streak}
@@ -51,17 +62,15 @@ export default function HomePage() {
       gems={stats?.gems}
       onStatsRefresh={loadData}
     >
-      {loading ? (
+      {showFullLoader ? (
         <div className="flex-1 flex flex-col items-center justify-center space-y-4 py-20">
           <MascotOwl emotion="happy" className="animate-bounce" width={100} height={100} />
           <p className="font-extrabold text-xl text-duo-green">Loading your learning path...</p>
         </div>
-      ) : error || units.length === 0 ? (
+      ) : error && !showPath ? (
         <div className="flex-1 flex flex-col items-center justify-center space-y-4 py-20 px-6 text-center">
           <MascotOwl emotion="sad" width={90} height={90} />
-          <p className="font-extrabold text-lg text-gray-700 dark:text-gray-200">
-            {error || 'Could not load your learning path.'}
-          </p>
+          <p className="font-extrabold text-lg text-gray-700 dark:text-gray-200">{error}</p>
           <button onClick={loadData} className="btn-duo btn-duo-green px-6 py-3 flex items-center gap-2">
             <RefreshCw className="w-4 h-4" />
             Try Again
@@ -69,7 +78,10 @@ export default function HomePage() {
         </div>
       ) : (
         <div className="flex-1 max-w-4xl mx-auto w-full px-3 sm:px-4 py-6 sm:py-8 flex flex-col items-center">
-          {/* Legendary Challenge Banner Toggle */}
+          {pathLoading && showPath && (
+            <p className="text-xs font-bold text-gray-400 mb-4">Refreshing path...</p>
+          )}
+
           <div className="w-full mb-6 sm:mb-8 p-3 sm:p-4 bg-amber-50 dark:bg-amber-950/40 border-2 border-duo-gold rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
             <div className="flex items-center space-x-3">
               <Crown className="w-7 h-7 sm:w-8 sm:h-8 text-duo-gold fill-duo-gold shrink-0" />
@@ -92,11 +104,9 @@ export default function HomePage() {
             </button>
           </div>
 
-          {/* Units & Serpentine Skill Path */}
           <div className="w-full space-y-10 sm:space-y-12 flex flex-col items-center">
             {units.map((unit) => (
               <div key={unit.id} className="w-full flex flex-col items-center">
-                {/* Unit Header Card */}
                 <div
                   style={{ backgroundColor: unit.hex_color }}
                   className="w-full max-w-lg rounded-3xl p-4 sm:p-6 text-white shadow-lg mb-8 sm:mb-10 text-center relative overflow-hidden"
@@ -110,7 +120,6 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* Serpentine Skill Path Bubbles */}
                 <div className="flex flex-col items-center space-y-6 sm:space-y-7 relative py-4">
                   {unit.skills.map((skill, sIdx) => {
                     const offset = getHorizontalOffset(sIdx);
@@ -185,13 +194,14 @@ export default function HomePage() {
               {selectedSkill.title}
             </h2>
             <p className="font-bold text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Crown {selectedSkill.current_crown} / {selectedSkill.total_crowns} • Lesson {selectedSkill.completed_lessons + 1} of {selectedSkill.total_lessons}
+              Crown {selectedSkill.current_crown} / {selectedSkill.total_crowns} • Lesson{' '}
+              {selectedSkill.completed_lessons + 1} of {selectedSkill.total_lessons}
             </p>
 
             <div className="w-full bg-gray-200 dark:bg-duo-dark-border h-3.5 rounded-full overflow-hidden mb-6">
               <div
                 style={{
-                  width: `${((selectedSkill.completed_lessons) / selectedSkill.total_lessons) * 100}%`,
+                  width: `${(selectedSkill.completed_lessons / selectedSkill.total_lessons) * 100}%`,
                 }}
                 className="bg-duo-green h-full transition-all duration-500"
               />

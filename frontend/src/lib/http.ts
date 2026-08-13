@@ -58,11 +58,21 @@ async function pingOnce(timeoutMs = 30000): Promise<boolean> {
 /** Wake Render free-tier backend — keeps trying until success or max time. */
 export async function wakeBackend(maxAttempts = 25): Promise<boolean> {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const timeoutMs = Math.min(20000 + attempt * 2000, 45000);
+    const timeoutMs = Math.min(8000 + attempt * 1500, 25000);
     if (await pingOnce(timeoutMs)) return true;
-    await wait(Math.min(1500 + attempt * 300, 4000));
+    await wait(Math.min(600 + attempt * 200, 2500));
   }
   return false;
+}
+
+let wakePromise: Promise<boolean> | null = null;
+
+/** Start waking the backend once per session (shared across all API calls). */
+export function startBackendWake(maxAttempts = 20): Promise<boolean> {
+  if (!wakePromise) {
+    wakePromise = wakeBackend(maxAttempts);
+  }
+  return wakePromise;
 }
 
 export async function ensureBackendReady(): Promise<void> {
@@ -94,15 +104,16 @@ async function responseLooksLikeHtml(res: Response): Promise<boolean> {
 export async function fetchWithRetry(
   url: string,
   options: RequestInit = {},
-  retries = 8
+  retries = 5
 ): Promise<Response> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
+      const timeoutMs = Math.min(10000 + attempt * 5000, 25000);
       const res = await fetch(url, {
         ...options,
-        signal: options.signal ?? timeoutSignal(45000),
+        signal: options.signal ?? timeoutSignal(timeoutMs),
       });
 
       const shouldRetryStatus =
@@ -111,7 +122,7 @@ export async function fetchWithRetry(
       const isHtml = await responseLooksLikeHtml(res);
 
       if ((shouldRetryStatus || isHtml) && attempt < retries) {
-        await wait(1500 + attempt * 1500);
+        await wait(500 + attempt * 700);
         continue;
       }
 
@@ -119,7 +130,7 @@ export async function fetchWithRetry(
     } catch (err) {
       lastError = err instanceof Error ? err : new Error('Network request failed');
       if (attempt < retries) {
-        await wait(1500 + attempt * 1500);
+        await wait(500 + attempt * 700);
       }
     }
   }

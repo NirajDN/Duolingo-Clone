@@ -1,4 +1,17 @@
-import { API_BASE, fetchWithRetry, parseJsonResponse } from './http';
+import { API_BASE, fetchWithRetry, parseJsonResponse, startBackendWake } from './http';
+import { readCache, readStaleCache, writeCache } from './cache';
+
+function getUserId(): number | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const raw = localStorage.getItem('duo_user');
+    if (!raw) return undefined;
+    const user = JSON.parse(raw) as { id?: number };
+    return user.id;
+  } catch {
+    return undefined;
+  }
+}
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 function getAuthHeaders(): HeadersInit {
@@ -17,6 +30,8 @@ function clearSession() {
 }
 
 async function authFetch(url: string, options: RequestInit = {}) {
+  void startBackendWake();
+
   const res = await fetchWithRetry(url, {
     ...options,
     headers: { ...getAuthHeaders(), ...(options.headers || {}) },
@@ -41,6 +56,31 @@ async function authJson<T>(url: string, options: RequestInit = {}): Promise<T> {
     throw new Error('Request failed');
   }
   return data;
+}
+
+async function authJsonWithCache<T>(
+  url: string,
+  cacheKey: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const userId = getUserId();
+  const fresh = readCache<T>(cacheKey, userId);
+  if (fresh) {
+    void authJson<T>(url, options)
+      .then((data) => writeCache(cacheKey, data, userId))
+      .catch(() => {});
+    return fresh;
+  }
+
+  try {
+    const data = await authJson<T>(url, options);
+    writeCache(cacheKey, data, userId);
+    return data;
+  } catch (err) {
+    const stale = readStaleCache<T>(cacheKey, userId);
+    if (stale) return stale;
+    throw err;
+  }
 }
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -121,8 +161,16 @@ export interface ProfileData {
 }
 
 // ─── API Functions ────────────────────────────────────────────────────────────
+export function getCachedPath(): Unit[] | null {
+  return readStaleCache<Unit[]>('duo_path', getUserId());
+}
+
+export function getCachedStats(): UserStats | null {
+  return readStaleCache<UserStats>('duo_stats', getUserId());
+}
+
 export async function fetchPath(): Promise<Unit[]> {
-  return authJson<Unit[]>(`${API_BASE}/path/`);
+  return authJsonWithCache<Unit[]>(`${API_BASE}/path/`, 'duo_path');
 }
 
 export async function fetchSkillLesson(skillId: number): Promise<Lesson> {
@@ -137,7 +185,7 @@ export async function submitLessonResult(lessonId: number, score: number, hearts
 }
 
 export async function fetchUserStats(): Promise<UserStats> {
-  return authJson<UserStats>(`${API_BASE}/user/stats/`);
+  return authJsonWithCache<UserStats>(`${API_BASE}/user/stats/`, 'duo_stats');
 }
 
 export async function refillHearts() {
@@ -150,4 +198,11 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
 
 export async function fetchProfile(): Promise<ProfileData> {
   return authJson<ProfileData>(`${API_BASE}/user/profile/`);
+}
+
+export function invalidateUserCache() {
+  const userId = getUserId();
+  if (!userId || typeof window === 'undefined') return;
+  localStorage.removeItem(`duo_path_${userId}`);
+  localStorage.removeItem(`duo_stats_${userId}`);
 }

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { API_BASE, fetchWithRetry, parseJsonResponse, ensureBackendReady } from '@/lib/http';
+import { API_BASE, fetchWithRetry, parseJsonResponse, ensureBackendReady, startBackendWake } from '@/lib/http';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface AuthUser {
@@ -50,6 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Restore session from localStorage on mount
   useEffect(() => {
+    startBackendWake();
     const stored = localStorage.getItem('duo_access');
     const storedUser = localStorage.getItem('duo_user');
     if (stored && storedUser) {
