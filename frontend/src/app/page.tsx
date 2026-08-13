@@ -3,38 +3,36 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import {
-  fetchPath,
-  fetchUserStats,
-  getCachedPath,
-  getCachedStats,
+  fetchDashboard,
+  getCachedDashboard,
   Unit,
   Skill,
   UserStats,
 } from '@/lib/api';
 import { AppShell } from '@/components/AppShell';
-import { MascotOwl } from '@/components/MascotOwl';
+import PathSkeleton from '@/components/PathSkeleton';
 import { useAuth } from '@/context/AuthContext';
 import { Lock, Crown, Star, Play, Zap, RefreshCw } from 'lucide-react';
 
 export default function HomePage() {
   const { user, loading: authLoading } = useAuth();
-  const [units, setUnits] = useState<Unit[]>(() => getCachedPath() ?? []);
-  const [stats, setStats] = useState<UserStats | null>(() => getCachedStats());
+  const cached = getCachedDashboard();
+  const [units, setUnits] = useState<Unit[]>(() => cached?.path ?? []);
+  const [stats, setStats] = useState<UserStats | null>(() => cached?.stats ?? null);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [legendaryMode, setLegendaryMode] = useState(false);
-  const [pathLoading, setPathLoading] = useState(() => !(getCachedPath()?.length));
+  const [pathLoading, setPathLoading] = useState(() => !(cached?.path?.length));
   const [error, setError] = useState('');
 
   const loadData = useCallback(async () => {
     setError('');
-    if (!units.length) setPathLoading(true);
     try {
-      const [pathData, statsData] = await Promise.all([fetchPath(), fetchUserStats()]);
-      setUnits(pathData);
-      setStats(statsData);
+      const data = await fetchDashboard();
+      setUnits(data.path);
+      setStats(data.stats);
     } catch (err) {
       console.error('Error loading home data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load learning path.');
+      setError((prev) => prev || (err instanceof Error ? err.message : 'Failed to load learning path.'));
     } finally {
       setPathLoading(false);
     }
@@ -51,7 +49,6 @@ export default function HomePage() {
   };
 
   const showPath = units.length > 0;
-  const showFullLoader = pathLoading && !showPath;
 
   return (
     <AppShell
@@ -62,14 +59,10 @@ export default function HomePage() {
       gems={stats?.gems}
       onStatsRefresh={loadData}
     >
-      {showFullLoader ? (
-        <div className="flex-1 flex flex-col items-center justify-center space-y-4 py-20">
-          <MascotOwl emotion="happy" className="animate-bounce" width={100} height={100} />
-          <p className="font-extrabold text-xl text-duo-green">Loading your learning path...</p>
-        </div>
+      {pathLoading && !showPath ? (
+        <PathSkeleton />
       ) : error && !showPath ? (
         <div className="flex-1 flex flex-col items-center justify-center space-y-4 py-20 px-6 text-center">
-          <MascotOwl emotion="sad" width={90} height={90} />
           <p className="font-extrabold text-lg text-gray-700 dark:text-gray-200">{error}</p>
           <button onClick={loadData} className="btn-duo btn-duo-green px-6 py-3 flex items-center gap-2">
             <RefreshCw className="w-4 h-4" />
@@ -78,10 +71,6 @@ export default function HomePage() {
         </div>
       ) : (
         <div className="flex-1 max-w-4xl mx-auto w-full px-3 sm:px-4 py-6 sm:py-8 flex flex-col items-center">
-          {pathLoading && showPath && (
-            <p className="text-xs font-bold text-gray-400 mb-4">Refreshing path...</p>
-          )}
-
           <div className="w-full mb-6 sm:mb-8 p-3 sm:p-4 bg-amber-50 dark:bg-amber-950/40 border-2 border-duo-gold rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
             <div className="flex items-center space-x-3">
               <Crown className="w-7 h-7 sm:w-8 sm:h-8 text-duo-gold fill-duo-gold shrink-0" />

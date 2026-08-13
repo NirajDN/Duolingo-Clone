@@ -1,4 +1,4 @@
-const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 interface CacheEntry<T> {
   data: T;
@@ -41,4 +41,8 @@ export function readStaleCache<T>(base: string, userId?: number): T | null {
   } catch {
     return null;
   }
+}
+
+export function writeCacheForUser<T>(base: string, data: T, userId: number) {
+  writeCache(base, data, userId);
 }

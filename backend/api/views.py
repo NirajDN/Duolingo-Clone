@@ -146,11 +146,7 @@ def get_me(request):
 
 # ─── LEARNING PATH ENDPOINTS ─────────────────────────────────────────────────
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_path(request):
-    """GET /api/path/ - Full learning path with lock/unlock & progress state."""
-    user = request.user
+def _build_path_payload(user):
     units = (
         Unit.objects.prefetch_related(
             Prefetch(
@@ -171,7 +167,27 @@ def get_path(request):
         many=True,
         context={'user': user, 'progress_map': progress_map},
     )
-    return Response(serializer.data)
+    return serializer.data
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_path(request):
+    """GET /api/path/ - Full learning path with lock/unlock & progress state."""
+    return Response(_build_path_payload(request.user))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_dashboard(request):
+    """GET /api/dashboard/ - Path + stats in one request."""
+    user = request.user
+    stats, _ = UserStats.objects.get_or_create(user=user)
+    calculate_user_hearts(stats)
+    return Response({
+        'path': _build_path_payload(user),
+        'stats': UserStatsSerializer(stats).data,
+    })
 
 
 @api_view(['GET'])

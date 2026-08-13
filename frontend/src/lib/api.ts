@@ -1,5 +1,5 @@
-import { API_BASE, fetchWithRetry, parseJsonResponse, startBackendWake } from './http';
-import { readCache, readStaleCache, writeCache } from './cache';
+import { API_BASE, fetchWithRetry, parseJsonResponse, warmBackendBriefly, startBackendWake } from './http';
+import { readStaleCache, writeCache } from './cache';
 
 function getUserId(): number | undefined {
   if (typeof window === 'undefined') return undefined;
@@ -13,7 +13,6 @@ function getUserId(): number | undefined {
   }
 }
 
-// ─── Auth helpers ─────────────────────────────────────────────────────────────
 function getAuthHeaders(): HeadersInit {
   const token = typeof window !== 'undefined' ? localStorage.getItem('duo_access') : null;
   return {
@@ -30,7 +29,7 @@ function clearSession() {
 }
 
 async function authFetch(url: string, options: RequestInit = {}) {
-  void startBackendWake();
+  await warmBackendBriefly();
 
   const res = await fetchWithRetry(url, {
     ...options,
@@ -58,32 +57,6 @@ async function authJson<T>(url: string, options: RequestInit = {}): Promise<T> {
   return data;
 }
 
-async function authJsonWithCache<T>(
-  url: string,
-  cacheKey: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const userId = getUserId();
-  const fresh = readCache<T>(cacheKey, userId);
-  if (fresh) {
-    void authJson<T>(url, options)
-      .then((data) => writeCache(cacheKey, data, userId))
-      .catch(() => {});
-    return fresh;
-  }
-
-  try {
-    const data = await authJson<T>(url, options);
-    writeCache(cacheKey, data, userId);
-    return data;
-  } catch (err) {
-    const stale = readStaleCache<T>(cacheKey, userId);
-    if (stale) return stale;
-    throw err;
-  }
-}
-
-// ─── Interfaces ───────────────────────────────────────────────────────────────
 export interface Skill {
   id: number;
   title: string;
@@ -134,6 +107,11 @@ export interface UserStats {
   daily_xp_today: number;
 }
 
+export interface DashboardData {
+  path: Unit[];
+  stats: UserStats;
+}
+
 export interface LeaderboardEntry {
   id: number;
   username: string;
@@ -160,17 +138,62 @@ export interface ProfileData {
   achievements: Achievement[];
 }
 
-// ─── API Functions ────────────────────────────────────────────────────────────
+function cacheDashboard(data: DashboardData, userId?: number) {
+  writeCache('duo_dashboard', data, userId);
+  writeCache('duo_path', data.path, userId);
+  writeCache('duo_stats', data.stats, userId);
+}
+
+export function getCachedDashboard(): DashboardData | null {
+  const userId = getUserId();
+  const dashboard = readStaleCache<DashboardData>('duo_dashboard', userId);
+  if (dashboard?.path?.length) return dashboard;
+
+  const path = readStaleCache<Unit[]>('duo_path', userId);
+  const stats = readStaleCache<UserStats>('duo_stats', userId);
+  if (path?.length && stats) return { path, stats };
+  return null;
+}
+
 export function getCachedPath(): Unit[] | null {
-  return readStaleCache<Unit[]>('duo_path', getUserId());
+  return getCachedDashboard()?.path ?? readStaleCache<Unit[]>('duo_path', getUserId());
 }
 
 export function getCachedStats(): UserStats | null {
-  return readStaleCache<UserStats>('duo_stats', getUserId());
+  return getCachedDashboard()?.stats ?? readStaleCache<UserStats>('duo_stats', getUserId());
+}
+
+async function refreshDashboard(userId?: number): Promise<DashboardData> {
+  const data = await authJson<DashboardData>(`${API_BASE}/dashboard/`);
+  cacheDashboard(data, userId ?? getUserId());
+  return data;
+}
+
+export async function fetchDashboard(): Promise<DashboardData> {
+  const userId = getUserId();
+  const stale = readStaleCache<DashboardData>('duo_dashboard', userId);
+  if (stale?.path?.length) {
+    void refreshDashboard(userId).catch(() => {});
+    return stale;
+  }
+
+  try {
+    return await refreshDashboard(userId);
+  } catch (err) {
+    const fallback = getCachedDashboard();
+    if (fallback) return fallback;
+    throw err;
+  }
+}
+
+export function prefetchDashboard(userId?: number) {
+  void startBackendWake();
+  void refreshDashboard(userId ?? getUserId()).catch(() => {});
 }
 
 export async function fetchPath(): Promise<Unit[]> {
-  return authJsonWithCache<Unit[]>(`${API_BASE}/path/`, 'duo_path');
+  const data = await fetchDashboard();
+  return data.path;
 }
 
 export async function fetchSkillLesson(skillId: number): Promise<Lesson> {
@@ -178,18 +201,23 @@ export async function fetchSkillLesson(skillId: number): Promise<Lesson> {
 }
 
 export async function submitLessonResult(lessonId: number, score: number, heartsLost: number) {
-  return authJson(`${API_BASE}/lessons/${lessonId}/complete/`, {
+  const result = await authJson(`${API_BASE}/lessons/${lessonId}/complete/`, {
     method: 'POST',
     body: JSON.stringify({ score, hearts_lost: heartsLost }),
   });
+  invalidateUserCache();
+  return result;
 }
 
 export async function fetchUserStats(): Promise<UserStats> {
-  return authJsonWithCache<UserStats>(`${API_BASE}/user/stats/`, 'duo_stats');
+  const data = await fetchDashboard();
+  return data.stats;
 }
 
 export async function refillHearts() {
-  return authJson(`${API_BASE}/user/hearts/refill/`, { method: 'POST' });
+  const result = await authJson(`${API_BASE}/user/hearts/refill/`, { method: 'POST' });
+  invalidateUserCache();
+  return result;
 }
 
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
@@ -203,6 +231,7 @@ export async function fetchProfile(): Promise<ProfileData> {
 export function invalidateUserCache() {
   const userId = getUserId();
   if (!userId || typeof window === 'undefined') return;
+  localStorage.removeItem(`duo_dashboard_${userId}`);
   localStorage.removeItem(`duo_path_${userId}`);
   localStorage.removeItem(`duo_stats_${userId}`);
 }

@@ -13,6 +13,7 @@ urlpatterns = [
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     # ── Learning Path ─────────────────────────────────────────
+    path('dashboard/', views.get_dashboard, name='get_dashboard'),
     path('path/', views.get_path, name='get_path'),
     path('skills/<int:skill_id>/lesson/', views.get_skill_lesson, name='get_skill_lesson'),
     path('lessons/<int:lesson_id>/complete/', views.complete_lesson, name='complete_lesson'),

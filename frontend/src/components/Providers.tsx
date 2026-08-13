@@ -3,11 +3,12 @@
 import React, { useEffect } from 'react';
 import { AuthProvider } from '@/context/AuthContext';
 import { AuthGate } from '@/components/AuthGate';
-import { startBackendWake } from '@/lib/http';
+import { keepBackendAlive, startBackendWake } from '@/lib/http';
 
 function BackendPrewarm() {
   useEffect(() => {
-    startBackendWake(20);
+    startBackendWake(25);
+    return keepBackendAlive();
   }, []);
   return null;
 }

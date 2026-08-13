@@ -29,45 +29,39 @@ async function fetchPing(url: string, timeoutMs: number): Promise<Response | nul
   }
 }
 
-async function pingOnce(timeoutMs = 30000): Promise<boolean> {
-  const urls = [`${API_BASE}/health/`, `${API_BASE}/leaderboard/`];
-
-  for (const url of urls) {
-    const res = await fetchPing(url, timeoutMs);
-    if (!res || res.status >= 502) continue;
-
-    if (url.endsWith('/health/')) {
-      if (res.status === 404) return true;
-      if (res.ok) {
-        try {
-          const data = await res.json();
-          if (data?.status === 'ok') return true;
-        } catch {
-          return true;
-        }
-      }
-      continue;
-    }
-
+function urlIsAwake(res: Response, url: string): boolean {
+  if (!res || res.status >= 502) return false;
+  if (url.endsWith('/health/')) {
+    if (res.status === 404) return true;
     if (res.ok) return true;
+    return false;
   }
-
-  return false;
+  return res.ok;
 }
 
-/** Wake Render free-tier backend — keeps trying until success or max time. */
+async function pingOnce(timeoutMs = 12000): Promise<boolean> {
+  const urls = [`${API_BASE}/health/`, `${API_BASE}/health/`, `${API_BASE}/leaderboard/`];
+  const results = await Promise.all(
+    urls.map(async (url) => {
+      const res = await fetchPing(url, timeoutMs);
+      return res ? urlIsAwake(res, url) : false;
+    })
+  );
+  return results.some(Boolean);
+}
+
+/** Wake Render free-tier backend — parallel pings, fast retries. */
 export async function wakeBackend(maxAttempts = 25): Promise<boolean> {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const timeoutMs = Math.min(8000 + attempt * 1500, 25000);
+    const timeoutMs = Math.min(6000 + attempt * 1000, 15000);
     if (await pingOnce(timeoutMs)) return true;
-    await wait(Math.min(600 + attempt * 200, 2500));
+    await wait(Math.min(400 + attempt * 150, 2000));
   }
   return false;
 }
 
 let wakePromise: Promise<boolean> | null = null;
 
-/** Start waking the backend once per session (shared across all API calls). */
 export function startBackendWake(maxAttempts = 20): Promise<boolean> {
   if (!wakePromise) {
     wakePromise = wakeBackend(maxAttempts);
@@ -75,11 +69,9 @@ export function startBackendWake(maxAttempts = 20): Promise<boolean> {
   return wakePromise;
 }
 
-export async function ensureBackendReady(): Promise<void> {
-  const ready = await wakeBackend(30);
-  if (!ready) {
-    throw new Error('Server is still starting. Wait 30 seconds and tap Retry.');
-  }
+/** Give wake a short head-start without blocking the UI for long. */
+export async function warmBackendBriefly(maxWaitMs = 2500): Promise<void> {
+  await Promise.race([startBackendWake(), wait(maxWaitMs)]);
 }
 
 export async function parseJsonResponse<T = unknown>(res: Response): Promise<T> {
@@ -104,13 +96,13 @@ async function responseLooksLikeHtml(res: Response): Promise<boolean> {
 export async function fetchWithRetry(
   url: string,
   options: RequestInit = {},
-  retries = 5
+  retries = 4
 ): Promise<Response> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
-      const timeoutMs = Math.min(10000 + attempt * 5000, 25000);
+      const timeoutMs = Math.min(8000 + attempt * 4000, 20000);
       const res = await fetch(url, {
         ...options,
         signal: options.signal ?? timeoutSignal(timeoutMs),
@@ -122,7 +114,7 @@ export async function fetchWithRetry(
       const isHtml = await responseLooksLikeHtml(res);
 
       if ((shouldRetryStatus || isHtml) && attempt < retries) {
-        await wait(500 + attempt * 700);
+        await wait(300 + attempt * 500);
         continue;
       }
 
@@ -130,10 +122,23 @@ export async function fetchWithRetry(
     } catch (err) {
       lastError = err instanceof Error ? err : new Error('Network request failed');
       if (attempt < retries) {
-        await wait(500 + attempt * 700);
+        await wait(300 + attempt * 500);
       }
     }
   }
 
   throw lastError ?? new Error('Network request failed');
+}
+
+export function keepBackendAlive(intervalMs = 4 * 60 * 1000) {
+  if (typeof window === 'undefined') return () => {};
+
+  const ping = () => {
+    if (document.visibilityState !== 'visible') return;
+    void fetch(`${API_BASE}/health/`, { cache: 'no-store', mode: 'cors' }).catch(() => {});
+  };
+
+  ping();
+  const id = window.setInterval(ping, intervalMs);
+  return () => window.clearInterval(id);
 }

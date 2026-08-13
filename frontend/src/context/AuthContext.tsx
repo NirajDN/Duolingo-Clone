@@ -1,10 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useLayoutEffect, useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { API_BASE, fetchWithRetry, parseJsonResponse, ensureBackendReady, startBackendWake } from '@/lib/http';
+import { API_BASE, fetchWithRetry, parseJsonResponse, startBackendWake, warmBackendBriefly } from '@/lib/http';
+import { prefetchDashboard } from '@/lib/api';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 export interface AuthUser {
   id: number;
   username: string;
@@ -20,12 +20,26 @@ interface AuthContextValue {
   logout: () => Promise<void>;
 }
 
-// ─── Context ──────────────────────────────────────────────────────────────────
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export const PUBLIC_ROUTES = ['/login', '/register'];
 
+function readStoredSession(): { user: AuthUser | null; token: string | null } {
+  if (typeof window === 'undefined') return { user: null, token: null };
+  try {
+    const token = localStorage.getItem('duo_access');
+    const storedUser = localStorage.getItem('duo_user');
+    if (token && storedUser) {
+      return { token, user: JSON.parse(storedUser) as AuthUser };
+    }
+  } catch {
+    /* ignore */
+  }
+  return { user: null, token: null };
+}
+
 async function authRequest<T>(url: string, options: RequestInit): Promise<T> {
+  await warmBackendBriefly();
   const res = await fetchWithRetry(url, options);
   const data = await parseJsonResponse<T & { detail?: string }>(res);
 
@@ -40,27 +54,28 @@ async function authRequest<T>(url: string, options: RequestInit): Promise<T> {
   return data;
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const stored = readStoredSession();
+  const [user, setUser] = useState<AuthUser | null>(stored.user);
+  const [token, setToken] = useState<string | null>(stored.token);
+  const [loading, setLoading] = useState(() => typeof window === 'undefined');
   const router = useRouter();
   const pathname = usePathname();
 
-  // Restore session from localStorage on mount
-  useEffect(() => {
-    startBackendWake();
-    const stored = localStorage.getItem('duo_access');
-    const storedUser = localStorage.getItem('duo_user');
-    if (stored && storedUser) {
-      setToken(stored);
-      setUser(JSON.parse(storedUser));
+  useLayoutEffect(() => {
+    const session = readStoredSession();
+    if (session.user) {
+      setUser(session.user);
+      setToken(session.token);
+      prefetchDashboard(session.user.id);
     }
     setLoading(false);
   }, []);
 
-  // Route guard
+  useEffect(() => {
+    startBackendWake();
+  }, []);
+
   useEffect(() => {
     if (loading) return;
     const isPublic = PUBLIC_ROUTES.includes(pathname);
@@ -78,12 +93,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('duo_user', JSON.stringify(data.user));
       setToken(data.access);
       setUser(data.user);
+      prefetchDashboard(data.user.id);
     },
     []
   );
 
   const login = useCallback(async (username: string, password: string) => {
-    await ensureBackendReady();
+    void startBackendWake();
     const data = await authRequest<{
       access: string;
       refresh: string;
@@ -99,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router, persistSession]);
 
   const register = useCallback(async (username: string, email: string, password: string) => {
-    await ensureBackendReady();
+    void startBackendWake();
     const data = await authRequest<{
       access: string;
       refresh: string;
@@ -142,7 +158,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
