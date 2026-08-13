@@ -2,7 +2,12 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_API_URL": "https://duolingo-clone-6092.onrender.com/api"
+    }
+  },
   "env": {
-    "NEXT_PUBLIC_API_URL": "https://duolingo-backend.onrender.com/api"
+    "NEXT_PUBLIC_API_URL": "https://duolingo-clone-6092.onrender.com/api"
   }
 }
