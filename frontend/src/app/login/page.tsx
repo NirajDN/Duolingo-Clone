@@ -157,7 +157,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center mt-6 text-white/70 text-xs font-bold">
-          🦜 Duolingo Clone — Assignment Project
+          🦜 Duolingo Clone
         </p>
       </div>
     </div>

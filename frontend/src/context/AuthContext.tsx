@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { API_BASE, fetchWithRetry, parseJsonResponse } from '@/lib/http';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface AuthUser {
@@ -22,8 +23,22 @@ interface AuthContextValue {
 // ─── Context ──────────────────────────────────────────────────────────────────
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const PUBLIC_ROUTES = ['/login', '/register'];
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://duolingo-clone-6092.onrender.com/api';
+export const PUBLIC_ROUTES = ['/login', '/register'];
+
+async function authRequest<T>(url: string, options: RequestInit): Promise<T> {
+  const res = await fetchWithRetry(url, options);
+  const data = await parseJsonResponse<T & { detail?: string }>(res);
+
+  if (!res.ok) {
+    const message =
+      typeof data === 'object' && data && 'detail' in data && data.detail
+        ? String(data.detail)
+        : 'Request failed';
+    throw new Error(message);
+  }
+
+  return data;
+}
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -49,67 +64,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (loading) return;
     const isPublic = PUBLIC_ROUTES.includes(pathname);
     if (!user && !isPublic) {
-      router.push('/login');
+      router.replace('/login');
     } else if (user && isPublic) {
-      router.push('/');
+      router.replace('/');
     }
   }, [user, loading, pathname, router]);
 
   const login = useCallback(async (username: string, password: string) => {
-    const res = await fetch(`${API_BASE}/auth/login/`, {
+    const data = await authRequest<{
+      access: string;
+      refresh: string;
+      user: AuthUser;
+    }>(`${API_BASE}/auth/login/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Login failed');
-    }
-    const data = await res.json();
+
     localStorage.setItem('duo_access', data.access);
     localStorage.setItem('duo_refresh', data.refresh);
     localStorage.setItem('duo_user', JSON.stringify(data.user));
     setToken(data.access);
     setUser(data.user);
-    router.push('/');
+    router.replace('/');
   }, [router]);
 
   const register = useCallback(async (username: string, email: string, password: string) => {
-    const res = await fetch(`${API_BASE}/auth/register/`, {
+    const data = await authRequest<{
+      access: string;
+      refresh: string;
+      user: AuthUser;
+    }>(`${API_BASE}/auth/register/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, email, password }),
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Registration failed');
-    }
-    const data = await res.json();
+
     localStorage.setItem('duo_access', data.access);
     localStorage.setItem('duo_refresh', data.refresh);
     localStorage.setItem('duo_user', JSON.stringify(data.user));
     setToken(data.access);
     setUser(data.user);
-    router.push('/');
+    router.replace('/');
   }, [router]);
 
   const logout = useCallback(async () => {
     const refresh = localStorage.getItem('duo_refresh');
     try {
       if (refresh) {
-        await fetch(`${API_BASE}/auth/logout/`, {
+        await fetchWithRetry(`${API_BASE}/auth/logout/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh }),
         });
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     localStorage.removeItem('duo_access');
     localStorage.removeItem('duo_refresh');
     localStorage.removeItem('duo_user');
     setToken(null);
     setUser(null);
-    router.push('/login');
+    router.replace('/login');
   }, [router]);
 
   return (

@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://duolingo-clone-6092.onrender.com/api';
+import { API_BASE, fetchWithRetry, parseJsonResponse } from './http';
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 function getAuthHeaders(): HeadersInit {
@@ -9,13 +9,38 @@ function getAuthHeaders(): HeadersInit {
   };
 }
 
+function clearSession() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('duo_access');
+  localStorage.removeItem('duo_refresh');
+  localStorage.removeItem('duo_user');
+}
+
 async function authFetch(url: string, options: RequestInit = {}) {
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     ...options,
     headers: { ...getAuthHeaders(), ...(options.headers || {}) },
     cache: 'no-store',
   });
+
+  if (res.status === 401) {
+    clearSession();
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login';
+    }
+    throw new Error('Session expired. Please log in again.');
+  }
+
   return res;
+}
+
+async function authJson<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const res = await authFetch(url, options);
+  const data = await parseJsonResponse<T>(res);
+  if (!res.ok) {
+    throw new Error('Request failed');
+  }
+  return data;
 }
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -97,46 +122,32 @@ export interface ProfileData {
 
 // ─── API Functions ────────────────────────────────────────────────────────────
 export async function fetchPath(): Promise<Unit[]> {
-  const res = await authFetch(`${API_BASE}/path/`);
-  if (!res.ok) throw new Error('Failed to fetch learning path');
-  return res.json();
+  return authJson<Unit[]>(`${API_BASE}/path/`);
 }
 
 export async function fetchSkillLesson(skillId: number): Promise<Lesson> {
-  const res = await authFetch(`${API_BASE}/skills/${skillId}/lesson/`);
-  if (!res.ok) throw new Error('Failed to fetch lesson');
-  return res.json();
+  return authJson<Lesson>(`${API_BASE}/skills/${skillId}/lesson/`);
 }
 
 export async function submitLessonResult(lessonId: number, score: number, heartsLost: number) {
-  const res = await authFetch(`${API_BASE}/lessons/${lessonId}/complete/`, {
+  return authJson(`${API_BASE}/lessons/${lessonId}/complete/`, {
     method: 'POST',
     body: JSON.stringify({ score, hearts_lost: heartsLost }),
   });
-  if (!res.ok) throw new Error('Failed to submit lesson result');
-  return res.json();
 }
 
 export async function fetchUserStats(): Promise<UserStats> {
-  const res = await authFetch(`${API_BASE}/user/stats/`);
-  if (!res.ok) throw new Error('Failed to fetch user stats');
-  return res.json();
+  return authJson<UserStats>(`${API_BASE}/user/stats/`);
 }
 
 export async function refillHearts() {
-  const res = await authFetch(`${API_BASE}/user/hearts/refill/`, { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to refill hearts');
-  return res.json();
+  return authJson(`${API_BASE}/user/hearts/refill/`, { method: 'POST' });
 }
 
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
-  const res = await authFetch(`${API_BASE}/leaderboard/`);
-  if (!res.ok) throw new Error('Failed to fetch leaderboard');
-  return res.json();
+  return authJson<LeaderboardEntry[]>(`${API_BASE}/leaderboard/`);
 }
 
 export async function fetchProfile(): Promise<ProfileData> {
-  const res = await authFetch(`${API_BASE}/user/profile/`);
-  if (!res.ok) throw new Error('Failed to fetch user profile');
-  return res.json();
+  return authJson<ProfileData>(`${API_BASE}/user/profile/`);
 }
