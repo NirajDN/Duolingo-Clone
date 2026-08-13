@@ -101,7 +101,9 @@ export default function ProfilePage() {
               <div className="p-3 sm:p-4 border-2 border-duo-gray dark:border-duo-dark-border rounded-2xl flex items-center space-x-2 sm:space-x-3">
                 <Trophy className="w-7 h-7 sm:w-8 sm:h-8 text-duo-blue fill-duo-blue shrink-0" />
                 <div>
-                  <span className="block text-xl sm:text-2xl font-black">Gold</span>
+                  <span className="block text-xl sm:text-2xl font-black">
+                    {profile.leaderboard?.league ?? 'Gold'}
+                  </span>
                   <span className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase">Current League</span>
                 </div>
               </div>
@@ -109,7 +111,9 @@ export default function ProfilePage() {
               <div className="p-3 sm:p-4 border-2 border-duo-gray dark:border-duo-dark-border rounded-2xl flex items-center space-x-2 sm:space-x-3">
                 <Shield className="w-7 h-7 sm:w-8 sm:h-8 text-duo-green fill-duo-green shrink-0" />
                 <div>
-                  <span className="block text-xl sm:text-2xl font-black">#3</span>
+                  <span className="block text-xl sm:text-2xl font-black">
+                    #{profile.leaderboard?.rank ?? '—'}
+                  </span>
                   <span className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase">Leaderboard Rank</span>
                 </div>
               </div>

@@ -137,6 +137,11 @@ export interface ProfileData {
   date_joined: string;
   stats: UserStats;
   achievements: Achievement[];
+  leaderboard: {
+    rank: number;
+    weekly_xp: number;
+    league: string;
+  };
 }
 
 export interface LessonCompletionResult {
@@ -149,6 +154,9 @@ export interface LessonCompletionResult {
   current_crown: number;
   next_skill_unlocked_id: number | null;
   streak_increased: boolean;
+  leaderboard_rank: number;
+  weekly_xp: number;
+  league: string;
 }
 
 export interface LessonCompleteHighlight {
@@ -478,6 +486,10 @@ export async function submitLessonResult(
   }
 
   void refreshDashboard().catch(() => {});
+  invalidateLeaderboardCache();
+  invalidateProfileCache();
+  void refreshLeaderboard().catch(() => {});
+  void refreshProfile().catch(() => {});
   return result;
 }
 
@@ -497,7 +509,28 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
 }
 
 export async function fetchProfile(): Promise<ProfileData> {
-  return fetchWithStaleCache('duo_profile', () => refreshProfile());
+  const userId = getUserId();
+  const stale = readStaleCache<ProfileData>('duo_profile', userId);
+  if (stale && !stale.leaderboard) {
+    try {
+      return await refreshProfile(userId);
+    } catch {
+      return fetchWithStaleCache('duo_profile', () => refreshProfile(), userId);
+    }
+  }
+  return fetchWithStaleCache('duo_profile', () => refreshProfile(), userId);
+}
+
+export function invalidateProfileCache() {
+  const userId = getUserId();
+  if (!userId || typeof window === 'undefined') return;
+  localStorage.removeItem(`duo_profile_${userId}`);
+}
+
+export function invalidateLeaderboardCache() {
+  const userId = getUserId();
+  if (!userId || typeof window === 'undefined') return;
+  localStorage.removeItem(`duo_leaderboard_${userId}`);
 }
 
 export function invalidateUserCache() {
@@ -506,6 +539,6 @@ export function invalidateUserCache() {
   localStorage.removeItem(`duo_dashboard_${userId}`);
   localStorage.removeItem(`duo_path_${userId}`);
   localStorage.removeItem(`duo_stats_${userId}`);
-  localStorage.removeItem(`duo_leaderboard_${userId}`);
-  localStorage.removeItem(`duo_profile_${userId}`);
+  invalidateLeaderboardCache();
+  invalidateProfileCache();
 }

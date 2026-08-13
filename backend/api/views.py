@@ -19,7 +19,7 @@ from .serializers import (
     UnitPathSerializer, LessonSerializer, UserStatsSerializer,
     LeaderboardEntrySerializer, AchievementSerializer
 )
-from .services import calculate_user_hearts, record_lesson_completion
+from .services import calculate_user_hearts, record_lesson_completion, get_leaderboard_rank, update_user_achievements
 
 
 def get_tokens_for_user(user):
@@ -71,6 +71,7 @@ def register_user(request):
     user = User.objects.create_user(username=username, email=email, password=password)
     # Bootstrap default UserStats for the new user
     UserStats.objects.get_or_create(user=user)
+    LeaderboardEntry.objects.get_or_create(user=user, defaults={'league': 'Gold'})
 
     tokens = get_tokens_for_user(user)
     return Response({
@@ -263,10 +264,32 @@ def refill_hearts(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_leaderboard(request):
-    """GET /api/leaderboard/ - Seeded leaderboard across users."""
-    entries = LeaderboardEntry.objects.select_related('user').order_by('-weekly_xp')[:20]
-    serializer = LeaderboardEntrySerializer(entries, many=True)
-    return Response(serializer.data)
+    """GET /api/leaderboard/ - Leaderboard ordered by weekly XP with live ranks."""
+    entries = list(LeaderboardEntry.objects.select_related('user').order_by('-weekly_xp', 'id'))
+    data = []
+    for idx, entry in enumerate(entries, start=1):
+        data.append({
+            'id': entry.id,
+            'username': entry.user.username,
+            'weekly_xp': entry.weekly_xp,
+            'league': entry.league,
+            'rank': idx,
+        })
+
+    if getattr(request, 'user', None) and request.user.is_authenticated:
+        seen = {row['username'] for row in data}
+        if request.user.username not in seen:
+            lb, _ = LeaderboardEntry.objects.get_or_create(user=request.user)
+            data.append({
+                'id': lb.id,
+                'username': request.user.username,
+                'weekly_xp': lb.weekly_xp,
+                'league': lb.league,
+                'rank': get_leaderboard_rank(request.user),
+            })
+            data.sort(key=lambda row: row['rank'])
+
+    return Response(data[:20])
 
 
 @api_view(['GET'])
@@ -277,24 +300,32 @@ def get_profile(request):
     stats, _ = UserStats.objects.get_or_create(user=user)
     calculate_user_hearts(stats)
 
+    achievements = Achievement.objects.all()
+    update_user_achievements(user, stats)
     ua_map = {
         ua.achievement_id: ua
         for ua in UserAchievement.objects.filter(user=user).only(
             'achievement_id', 'is_unlocked', 'current_progress'
         )
     }
-    achievements = Achievement.objects.all()
     achievements_serialized = AchievementSerializer(
         achievements,
         many=True,
         context={'user': user, 'user_achievements_map': ua_map},
     ).data
 
+    lb, _ = LeaderboardEntry.objects.get_or_create(user=user)
+
     return Response({
         'username': user.username,
         'date_joined': user.date_joined,
         'stats': UserStatsSerializer(stats).data,
         'achievements': achievements_serialized,
+        'leaderboard': {
+            'rank': get_leaderboard_rank(user),
+            'weekly_xp': lb.weekly_xp,
+            'league': lb.league,
+        },
     })
 
 

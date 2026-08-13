@@ -1,6 +1,9 @@
 from datetime import timedelta
 from django.utils import timezone
-from .models import UserStats, UserProgress, Skill, Lesson, UserLessonAttempt, LeaderboardEntry
+from .models import (
+    UserStats, UserProgress, Skill, Lesson, UserLessonAttempt, LeaderboardEntry,
+    Achievement, UserAchievement,
+)
 
 REGEN_INTERVAL_MINUTES = 60  # 1 heart regenerated every 60 minutes
 
@@ -65,6 +68,46 @@ def update_user_streak(stats: UserStats, activity_date=None) -> int:
     return stats.streak
 
 
+def get_leaderboard_rank(user) -> int:
+    """Rank = 1 + number of users with strictly higher weekly XP."""
+    lb, _ = LeaderboardEntry.objects.get_or_create(user=user)
+    return 1 + LeaderboardEntry.objects.filter(weekly_xp__gt=lb.weekly_xp).count()
+
+
+def recalculate_leaderboard_ranks():
+    """Persist rank on each entry ordered by weekly XP (highest first)."""
+    entries = LeaderboardEntry.objects.order_by('-weekly_xp', 'id')
+    for idx, entry in enumerate(entries, start=1):
+        if entry.rank != idx:
+            entry.rank = idx
+            entry.save(update_fields=['rank'])
+
+
+def update_user_achievements(user, stats: UserStats):
+    """Sync achievement progress from live user stats."""
+    completed_skills = UserProgress.objects.filter(user=user, is_completed=True).count()
+    perfect_lessons = UserLessonAttempt.objects.filter(user=user, score=100).count()
+    lb = LeaderboardEntry.objects.filter(user=user).first()
+    league_is_gold = bool(lb and lb.league == 'Gold')
+
+    category_progress = {
+        'streak': stats.streak,
+        'xp': stats.xp,
+        'skills': completed_skills,
+        'accuracy': perfect_lessons,
+        'league': 1 if league_is_gold else 0,
+    }
+
+    for ach in Achievement.objects.all():
+        progress_val = category_progress.get(ach.category, 0)
+        ua, _ = UserAchievement.objects.get_or_create(user=user, achievement=ach)
+        ua.current_progress = min(progress_val, ach.max_progress)
+        if ua.current_progress >= ach.max_progress and not ua.is_unlocked:
+            ua.is_unlocked = True
+            ua.unlocked_at = timezone.now()
+        ua.save()
+
+
 def record_lesson_completion(user, lesson: Lesson, score: int, hearts_lost: int, activity_datetime=None):
     """
     Processes lesson completion results:
@@ -110,7 +153,14 @@ def record_lesson_completion(user, lesson: Lesson, score: int, hearts_lost: int,
     # 5. Update Leaderboard Entry
     lb, _ = LeaderboardEntry.objects.get_or_create(user=user)
     lb.weekly_xp += xp_gained
+    if lb.league == 'Bronze':
+        lb.league = 'Gold'
     lb.save()
+    recalculate_leaderboard_ranks()
+    leaderboard_rank = get_leaderboard_rank(user)
+
+    # 5b. Sync achievements
+    update_user_achievements(user, stats)
 
     # 6. Update Skill Progress & Unlock Next
     skill = lesson.skill
@@ -151,4 +201,7 @@ def record_lesson_completion(user, lesson: Lesson, score: int, hearts_lost: int,
         'current_crown': progress.current_crown,
         'next_skill_unlocked_id': next_skill_id,
         'streak_increased': streak_increased,
+        'leaderboard_rank': leaderboard_rank,
+        'weekly_xp': lb.weekly_xp,
+        'league': lb.league,
     }

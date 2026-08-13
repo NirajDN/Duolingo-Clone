@@ -50,6 +50,8 @@ export default function LeaderboardPage() {
   }, [authLoading, user, loadData]);
 
   const showContent = entries.length > 0;
+  const myEntry = entries.find((entry) => entry.username === user?.username);
+  const leagueName = myEntry?.league ?? 'Gold';
 
   return (
     <AppShell
@@ -66,7 +68,7 @@ export default function LeaderboardPage() {
         <div className="max-w-3xl mx-auto w-full px-3 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
           <div className="bg-gradient-to-r from-amber-400 to-yellow-500 rounded-3xl p-4 sm:p-6 text-white text-center shadow-lg relative overflow-hidden flex flex-col items-center">
             <Trophy className="w-12 h-12 sm:w-16 sm:h-16 fill-white text-yellow-600 mb-2 animate-bounce" />
-            <h1 className="text-2xl sm:text-3xl font-black mb-1">Gold League</h1>
+            <h1 className="text-2xl sm:text-3xl font-black mb-1">{leagueName} League</h1>
             <p className="font-bold text-xs sm:text-sm text-yellow-100 flex items-center space-x-1">
               <Clock className="w-4 h-4 inline shrink-0" />
               <span>Ends in 3 days • Top 3 advance to Sapphire League!</span>
@@ -81,13 +83,13 @@ export default function LeaderboardPage() {
             </div>
 
             <div className="divide-y-2 divide-duo-gray dark:divide-duo-dark-border">
-              {entries.map((entry, idx) => {
-                const rank = idx + 1;
+              {entries.map((entry) => {
+                const rank = entry.rank;
                 const isCurrentLearner = entry.username === user?.username;
 
                 return (
                   <div
-                    key={entry.id || idx}
+                    key={entry.id || `${entry.username}-${rank}`}
                     className={`p-3 sm:p-4 grid grid-cols-12 items-center font-bold text-sm sm:text-base transition-colors ${
                       isCurrentLearner ? 'bg-blue-50 dark:bg-blue-950/40 text-duo-blue' : 'hover:bg-gray-50 dark:hover:bg-duo-dark/50'
                     }`}
