@@ -286,13 +286,30 @@ Open [http://localhost:8000/admin/](http://localhost:8000/admin/) and log in wit
 - **User lesson attempts** — completed lessons
 - **Languages / Units / Skills / Lessons / Exercises** — course content
 
-### Production (Render)
+### Production (Render) — no Shell required
 
-1. Render Dashboard → your backend service → **Shell**
-2. Run: `python manage.py createsuperuser`
-3. Open: `https://duolingo-clone-6092.onrender.com/admin/`
+Render Shell may require a paid plan. Use **live Django Admin** in your browser instead:
 
-> **Note:** Render free tier may sleep; first load can take ~15 seconds.
+1. Render Dashboard → your backend → **Environment**
+2. Add these variables (then save — triggers redeploy):
+
+| Key | Value |
+|---|---|
+| `DJANGO_SUPERUSER_USERNAME` | `admin` |
+| `DJANGO_SUPERUSER_PASSWORD` | *choose a strong password* |
+| `DJANGO_SUPERUSER_EMAIL` | *optional* |
+
+3. After redeploy finishes, open:
+
+   **https://duolingo-clone-6092.onrender.com/admin/**
+
+4. Log in → **Users** → real signups from your live site appear here.
+
+Refresh the page to see new users after someone registers on Vercel.
+
+> **Render free tier note:** SQLite on free tier may reset when the service redeploys or sleeps for a long time. For permanent production data, use a free PostgreSQL database ([Neon](https://neon.tech) or [Supabase](https://supabase.com)) and set `DATABASE_URL` on Render.
+
+### Production (Render Shell — if available on your plan)
 
 ### Alternative: DB Browser for SQLite
 
