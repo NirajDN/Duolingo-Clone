@@ -1,0 +1,59 @@
+# ─── Secrets & environment (never commit real keys) ───
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ─── Python / Django ───
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Django local database & runtime files
+db.sqlite3
+db.sqlite3-journal
+*.log
+local_settings.py
+media/
+staticfiles/
+static/
+
+# ─── Node / Next.js (frontend) ───
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.vercel/
+frontend/.pnp
+frontend/.pnp.js
+frontend/.yarn/install-state.gz
+frontend/coverage/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+
+# ─── OS & editors ───
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ─── Misc ───
+*.pem
