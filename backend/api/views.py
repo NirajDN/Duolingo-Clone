@@ -264,14 +264,24 @@ def get_profile(request):
     stats, _ = UserStats.objects.get_or_create(user=user)
     calculate_user_hearts(stats)
 
+    ua_map = {
+        ua.achievement_id: ua
+        for ua in UserAchievement.objects.filter(user=user).only(
+            'achievement_id', 'is_unlocked', 'current_progress'
+        )
+    }
     achievements = Achievement.objects.all()
-    achievements_serialized = AchievementSerializer(achievements, many=True, context={'user': user}).data
+    achievements_serialized = AchievementSerializer(
+        achievements,
+        many=True,
+        context={'user': user, 'user_achievements_map': ua_map},
+    ).data
 
     return Response({
         'username': user.username,
         'date_joined': user.date_joined,
         'stats': UserStatsSerializer(stats).data,
-        'achievements': achievements_serialized
+        'achievements': achievements_serialized,
     })
 
 

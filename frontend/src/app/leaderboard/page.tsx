@@ -1,24 +1,42 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { fetchLeaderboard, fetchUserStats, LeaderboardEntry, UserStats } from '@/lib/api';
+import {
+  fetchLeaderboard,
+  getCachedLeaderboard,
+  getCachedStats,
+  LeaderboardEntry,
+  UserStats,
+} from '@/lib/api';
 import { AppShell } from '@/components/AppShell';
-import { MascotOwl } from '@/components/MascotOwl';
 import { useAuth } from '@/context/AuthContext';
 import { Trophy, Shield, Zap, Clock } from 'lucide-react';
 
+function LeaderboardSkeleton() {
+  return (
+    <div className="max-w-3xl mx-auto w-full px-3 sm:px-6 py-6 sm:py-8 space-y-6 animate-pulse">
+      <div className="h-36 bg-amber-200/60 dark:bg-amber-900/30 rounded-3xl" />
+      <div className="border-2 border-duo-gray dark:border-duo-dark-border rounded-3xl overflow-hidden">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="h-14 border-b border-duo-gray dark:border-duo-dark-border bg-gray-100 dark:bg-duo-dark-card" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function LeaderboardPage() {
   const { user, loading: authLoading } = useAuth();
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [stats, setStats] = useState<UserStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [entries, setEntries] = useState<LeaderboardEntry[]>(() => getCachedLeaderboard() ?? []);
+  const [stats, setStats] = useState<UserStats | null>(() => getCachedStats());
+  const [loading, setLoading] = useState(() => !(getCachedLeaderboard()?.length));
 
   const loadData = useCallback(async () => {
     try {
-      setLoading(true);
-      const [lbData, statsData] = await Promise.all([fetchLeaderboard(), fetchUserStats()]);
+      const lbData = await fetchLeaderboard();
       setEntries(lbData);
-      setStats(statsData);
+      const cachedStats = getCachedStats();
+      if (cachedStats) setStats(cachedStats);
     } catch (err) {
       console.error('Error fetching leaderboard:', err);
     } finally {
@@ -31,6 +49,8 @@ export default function LeaderboardPage() {
     loadData();
   }, [authLoading, user, loadData]);
 
+  const showContent = entries.length > 0;
+
   return (
     <AppShell
       streak={stats?.streak}
@@ -40,13 +60,10 @@ export default function LeaderboardPage() {
       gems={stats?.gems}
       onStatsRefresh={loadData}
     >
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <MascotOwl emotion="happy" className="animate-bounce" />
-        </div>
+      {loading && !showContent ? (
+        <LeaderboardSkeleton />
       ) : (
         <div className="max-w-3xl mx-auto w-full px-3 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
-          {/* Banner Header */}
           <div className="bg-gradient-to-r from-amber-400 to-yellow-500 rounded-3xl p-4 sm:p-6 text-white text-center shadow-lg relative overflow-hidden flex flex-col items-center">
             <Trophy className="w-12 h-12 sm:w-16 sm:h-16 fill-white text-yellow-600 mb-2 animate-bounce" />
             <h1 className="text-2xl sm:text-3xl font-black mb-1">Gold League</h1>
@@ -56,7 +73,6 @@ export default function LeaderboardPage() {
             </p>
           </div>
 
-          {/* Leaderboard Table List */}
           <div className="border-2 border-duo-gray dark:border-duo-dark-border rounded-3xl overflow-hidden bg-white dark:bg-duo-dark-card shadow-sm">
             <div className="p-3 sm:p-4 bg-gray-50 dark:bg-duo-dark-card border-b-2 border-duo-gray dark:border-duo-dark-border grid grid-cols-12 font-black text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider">
               <span className="col-span-2 text-center">Rank</span>

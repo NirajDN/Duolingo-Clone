@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useLayoutEffect, useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { API_BASE, fetchWithRetry, parseJsonResponse, startBackendWake, warmBackendBriefly } from '@/lib/http';
+import { API_BASE, fetchWithRetry, parseJsonResponse, startBackendWake } from '@/lib/http';
 import { prefetchDashboard } from '@/lib/api';
 
 export interface AuthUser {
@@ -39,7 +39,7 @@ function readStoredSession(): { user: AuthUser | null; token: string | null } {
 }
 
 async function authRequest<T>(url: string, options: RequestInit): Promise<T> {
-  await warmBackendBriefly();
+  void startBackendWake();
   const res = await fetchWithRetry(url, options);
   const data = await parseJsonResponse<T & { detail?: string }>(res);
 

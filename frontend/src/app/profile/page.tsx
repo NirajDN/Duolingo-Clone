@@ -1,20 +1,37 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { fetchProfile, ProfileData } from '@/lib/api';
+import { fetchProfile, getCachedProfile, ProfileData } from '@/lib/api';
 import { AppShell } from '@/components/AppShell';
 import { MascotOwl } from '@/components/MascotOwl';
 import { useAuth } from '@/context/AuthContext';
 import { Trophy, Flame, Zap, Shield, Calendar, Award } from 'lucide-react';
 
+function ProfileSkeleton() {
+  return (
+    <div className="max-w-4xl mx-auto w-full px-3 sm:px-6 py-6 sm:py-8 space-y-6 animate-pulse">
+      <div className="h-32 bg-gray-200 dark:bg-duo-dark-card rounded-3xl" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-20 bg-gray-200 dark:bg-duo-dark-card rounded-2xl" />
+        ))}
+      </div>
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-20 bg-gray-200 dark:bg-duo-dark-card rounded-2xl" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<ProfileData | null>(() => getCachedProfile());
+  const [loading, setLoading] = useState(() => !getCachedProfile());
 
   const loadProfile = useCallback(async () => {
     try {
-      setLoading(true);
       const data = await fetchProfile();
       setProfile(data);
     } catch (err) {
@@ -29,6 +46,8 @@ export default function ProfilePage() {
     loadProfile();
   }, [authLoading, user, loadProfile]);
 
+  const showContent = profile !== null;
+
   return (
     <AppShell
       streak={profile?.stats?.streak}
@@ -38,13 +57,10 @@ export default function ProfilePage() {
       gems={profile?.stats?.gems}
       onStatsRefresh={loadProfile}
     >
-      {loading || !profile ? (
-        <div className="flex-1 flex items-center justify-center">
-          <MascotOwl emotion="happy" className="animate-bounce" />
-        </div>
-      ) : (
+      {loading && !showContent ? (
+        <ProfileSkeleton />
+      ) : profile ? (
         <div className="max-w-4xl mx-auto w-full px-3 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
-          {/* User Header Profile Card */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 p-4 sm:p-6 bg-gray-50 dark:bg-duo-dark-card border-2 border-duo-gray dark:border-duo-dark-border rounded-3xl">
             <div className="relative self-center sm:self-auto">
               <MascotOwl width={90} height={90} emotion="happy" />
@@ -63,7 +79,6 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Statistics Grid */}
           <section className="space-y-4">
             <h2 className="text-xl font-black text-gray-800 dark:text-white">Statistics</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
@@ -101,7 +116,6 @@ export default function ProfilePage() {
             </div>
           </section>
 
-          {/* Achievements Grid */}
           <section className="space-y-4">
             <h2 className="text-xl font-black text-gray-800 dark:text-white flex items-center space-x-2">
               <Award className="w-6 h-6 text-duo-gold" />
@@ -148,7 +162,7 @@ export default function ProfilePage() {
             </div>
           </section>
         </div>
-      )}
+      ) : null}
     </AppShell>
   );
 }

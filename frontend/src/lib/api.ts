@@ -1,4 +1,4 @@
-import { API_BASE, fetchWithRetry, parseJsonResponse, warmBackendBriefly, startBackendWake } from './http';
+import { API_BASE, fetchWithRetry, parseJsonResponse, startBackendWake } from './http';
 import { readStaleCache, writeCache } from './cache';
 
 function getUserId(): number | undefined {
@@ -29,7 +29,7 @@ function clearSession() {
 }
 
 async function authFetch(url: string, options: RequestInit = {}) {
-  await warmBackendBriefly();
+  void startBackendWake();
 
   const res = await fetchWithRetry(url, {
     ...options,
@@ -166,7 +166,68 @@ export function getCachedStats(): UserStats | null {
 async function refreshDashboard(userId?: number): Promise<DashboardData> {
   const data = await authJson<DashboardData>(`${API_BASE}/dashboard/`);
   cacheDashboard(data, userId ?? getUserId());
+  prefetchSecondaryPages(userId);
   return data;
+}
+
+async function fetchWithStaleCache<T>(
+  cacheKey: string,
+  fetcher: () => Promise<T>,
+  userId?: number
+): Promise<T> {
+  const stale = readStaleCache<T>(cacheKey, userId ?? getUserId());
+  if (stale) {
+    void fetcher()
+      .then((data) => writeCache(cacheKey, data, userId ?? getUserId()))
+      .catch(() => {});
+    return stale;
+  }
+
+  try {
+    const data = await fetcher();
+    writeCache(cacheKey, data, userId ?? getUserId());
+    return data;
+  } catch (err) {
+    const fallback = readStaleCache<T>(cacheKey, userId ?? getUserId());
+    if (fallback) return fallback;
+    throw err;
+  }
+}
+
+async function refreshLeaderboard(userId?: number): Promise<LeaderboardEntry[]> {
+  const data = await authJson<LeaderboardEntry[]>(`${API_BASE}/leaderboard/`);
+  writeCache('duo_leaderboard', data, userId ?? getUserId());
+  return data;
+}
+
+async function refreshProfile(userId?: number): Promise<ProfileData> {
+  const data = await authJson<ProfileData>(`${API_BASE}/user/profile/`);
+  writeCache('duo_profile', data, userId ?? getUserId());
+  writeCache('duo_stats', data.stats, userId ?? getUserId());
+  return data;
+}
+
+export function getCachedLeaderboard(): LeaderboardEntry[] | null {
+  return readStaleCache<LeaderboardEntry[]>('duo_leaderboard', getUserId());
+}
+
+export function getCachedProfile(): ProfileData | null {
+  return readStaleCache<ProfileData>('duo_profile', getUserId());
+}
+
+export function prefetchLeaderboard(userId?: number) {
+  void startBackendWake();
+  void refreshLeaderboard(userId ?? getUserId()).catch(() => {});
+}
+
+export function prefetchProfile(userId?: number) {
+  void startBackendWake();
+  void refreshProfile(userId ?? getUserId()).catch(() => {});
+}
+
+export function prefetchSecondaryPages(userId?: number) {
+  prefetchLeaderboard(userId);
+  prefetchProfile(userId);
 }
 
 export async function fetchDashboard(): Promise<DashboardData> {
@@ -221,11 +282,11 @@ export async function refillHearts() {
 }
 
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
-  return authJson<LeaderboardEntry[]>(`${API_BASE}/leaderboard/`);
+  return fetchWithStaleCache('duo_leaderboard', () => refreshLeaderboard());
 }
 
 export async function fetchProfile(): Promise<ProfileData> {
-  return authJson<ProfileData>(`${API_BASE}/user/profile/`);
+  return fetchWithStaleCache('duo_profile', () => refreshProfile());
 }
 
 export function invalidateUserCache() {
@@ -234,4 +295,6 @@ export function invalidateUserCache() {
   localStorage.removeItem(`duo_dashboard_${userId}`);
   localStorage.removeItem(`duo_path_${userId}`);
   localStorage.removeItem(`duo_stats_${userId}`);
+  localStorage.removeItem(`duo_leaderboard_${userId}`);
+  localStorage.removeItem(`duo_profile_${userId}`);
 }

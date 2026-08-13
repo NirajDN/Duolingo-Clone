@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Trophy, User, Settings } from 'lucide-react';
 
+import { prefetchLeaderboard, prefetchProfile } from '@/lib/api';
+
 const navItems = [
   { label: 'Learn', href: '/', icon: Home },
   { label: 'Leaderboard', href: '/leaderboard', icon: Trophy },
@@ -26,6 +28,10 @@ export function MobileNav() {
             <Link
               key={item.href}
               href={item.href}
+              onTouchStart={() => {
+                if (item.href === '/leaderboard') prefetchLeaderboard();
+                if (item.href === '/profile') prefetchProfile();
+              }}
               className={`flex flex-col items-center justify-center py-2.5 px-1 transition-colors ${
                 isActive
                   ? 'text-duo-blue'

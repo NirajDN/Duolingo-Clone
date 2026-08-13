@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Trophy, User, Settings, Sparkles, LogOut } from 'lucide-react';
 import { MascotOwl } from './MascotOwl';
+import { prefetchLeaderboard, prefetchProfile } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
 export const Sidebar: React.FC = () => {
@@ -17,6 +18,11 @@ export const Sidebar: React.FC = () => {
     { label: 'PROFILE', href: '/profile', icon: User, color: 'text-duo-blue' },
     { label: 'SETTINGS', href: '/settings', icon: Settings, color: 'text-gray-400' },
   ];
+
+  const prefetchForHref = (href: string) => {
+    if (href === '/leaderboard') prefetchLeaderboard();
+    if (href === '/profile') prefetchProfile();
+  };
 
   return (
     <aside className="w-64 hidden md:flex flex-col border-r-2 border-duo-gray dark:border-duo-dark-border h-screen sticky top-0 bg-white dark:bg-duo-dark p-4 z-40">
@@ -37,6 +43,8 @@ export const Sidebar: React.FC = () => {
             <Link
               key={item.href}
               href={item.href}
+              onMouseEnter={() => prefetchForHref(item.href)}
+              onFocus={() => prefetchForHref(item.href)}
               className={`flex items-center space-x-4 px-4 py-3.5 rounded-2xl font-extrabold text-sm tracking-wider transition-all ${
                 isActive
                   ? 'bg-blue-50 dark:bg-duo-dark-card border-2 border-duo-blue text-duo-blue'

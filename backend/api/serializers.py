@@ -115,6 +115,9 @@ class AchievementSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'description', 'icon', 'category', 'max_progress', 'is_unlocked', 'current_progress']
 
     def get_user_achievement(self, obj):
+        ua_map = self.context.get('user_achievements_map')
+        if ua_map is not None:
+            return ua_map.get(obj.id)
         user = self.context.get('user')
         if not user or user.is_anonymous:
             return None
