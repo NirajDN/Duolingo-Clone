@@ -6,7 +6,7 @@ import { fetchPath, fetchUserStats, Unit, Skill, UserStats } from '@/lib/api';
 import { TopBar } from '@/components/TopBar';
 import { Sidebar } from '@/components/Sidebar';
 import { MascotOwl } from '@/components/MascotOwl';
-import { Lock, Crown, Star, Play, CheckCircle2, Zap } from 'lucide-react';
+import { Lock, Crown, Star, Play, Zap } from 'lucide-react';
 
 export default function HomePage() {
   const [units, setUnits] = useState<Unit[]>([]);
@@ -32,7 +32,6 @@ export default function HomePage() {
     loadData();
   }, []);
 
-  // Compute snaking horizontal offset for skill nodes in order
   const getHorizontalOffset = (index: number) => {
     const offsets = [0, -45, -30, 0, 30, 45, 20, 0, -25];
     return offsets[index % offsets.length];
@@ -112,7 +111,6 @@ export default function HomePage() {
                           style={{ transform: `translateX(${offset}px)` }}
                           className="relative flex flex-col items-center group transition-transform duration-300"
                         >
-                          {/* Active / Next floating Mascot Tooltip */}
                           {isNext && (
                             <div className="absolute -top-12 z-20 bg-white dark:bg-duo-dark-card border-2 border-duo-green px-3 py-1 rounded-xl shadow-md font-black text-xs text-duo-green flex items-center space-x-1.5 animate-bounce">
                               <span>START</span>
@@ -120,7 +118,6 @@ export default function HomePage() {
                             </div>
                           )}
 
-                          {/* Skill Bubble Button */}
                           <button
                             onClick={() => {
                               if (skill.is_unlocked) setSelectedSkill(skill);
@@ -142,7 +139,6 @@ export default function HomePage() {
                               <Lock className="w-8 h-8 text-gray-400 dark:text-gray-500" />
                             )}
 
-                            {/* Crown Level Indicator Ring */}
                             {skill.is_unlocked && (
                               <span className="absolute -bottom-1 -right-1 bg-white dark:bg-duo-dark border-2 border-duo-gold text-duo-gold text-xs font-black w-6 h-6 rounded-full flex items-center justify-center shadow">
                                 {skill.current_crown}
@@ -150,7 +146,6 @@ export default function HomePage() {
                             )}
                           </button>
 
-                          {/* Skill Label */}
                           <span className="mt-2 font-black text-sm tracking-wide text-gray-700 dark:text-gray-200 text-center max-w-[120px]">
                             {skill.title}
                           </span>
@@ -164,7 +159,6 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Skill Start Popover Modal */}
         {selectedSkill && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
             <div className="bg-white dark:bg-duo-dark-card border-4 border-duo-green rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative">
@@ -183,7 +177,6 @@ export default function HomePage() {
                 Crown {selectedSkill.current_crown} / {selectedSkill.total_crowns} • Lesson {selectedSkill.completed_lessons + 1} of {selectedSkill.total_lessons}
               </p>
 
-              {/* Progress Bar inside modal */}
               <div className="w-full bg-gray-200 dark:bg-duo-dark-border h-3.5 rounded-full overflow-hidden mb-6">
                 <div
                   style={{

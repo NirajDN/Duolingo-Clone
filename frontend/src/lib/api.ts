@@ -27,7 +27,7 @@ export interface Exercise {
   type: 'multiple_choice' | 'translate' | 'match_pairs' | 'fill_blank' | 'type_answer';
   prompt: string;
   order: number;
-  content: any;
+  content: Record<string, unknown>;
 }
 
 export interface Lesson {

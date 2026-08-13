@@ -3,9 +3,20 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import confetti from 'canvas-confetti';
-import { X, Heart, Check, AlertCircle, Volume2, Clock } from 'lucide-react';
+import { X, Heart, Check, Volume2, Clock } from 'lucide-react';
 import { fetchSkillLesson, submitLessonResult, Lesson, Exercise } from '@/lib/api';
 import { MascotOwl } from '@/components/MascotOwl';
+
+interface Option {
+  text: string;
+  correct: boolean;
+  image?: string;
+}
+
+interface Pair {
+  left: string;
+  right: string;
+}
 
 export default function LessonPlayerPage() {
   const params = useParams();
@@ -21,11 +32,11 @@ export default function LessonPlayerPage() {
   const [heartsLost, setHeartsLost] = useState(0);
 
   // Exercise State Management
-  const [selectedOption, setSelectedOption] = useState<any>(null); // For Multiple Choice & Fill Blank
-  const [selectedWords, setSelectedWords] = useState<string[]>([]); // For Translate / Word Bank
+  const [selectedOption, setSelectedOption] = useState<Option | string | null>(null);
+  const [selectedWords, setSelectedWords] = useState<string[]>([]);
   const [wordBank, setWordBank] = useState<string[]>([]);
-  const [typedAnswer, setTypedAnswer] = useState(''); // For Type Answer
-  const [matchedPairs, setMatchedPairs] = useState<string[]>([]); // For Match Pairs
+  const [typedAnswer, setTypedAnswer] = useState('');
+  const [matchedPairs, setMatchedPairs] = useState<string[]>([]);
   const [selectedPairLeft, setSelectedPairLeft] = useState<string | null>(null);
 
   // Status & Feedback
@@ -71,7 +82,6 @@ export default function LessonPlayerPage() {
 
   const currentExercise: Exercise | undefined = lesson?.exercises[currentIndex];
 
-  // Setup current exercise state variables
   const setupExercise = (ex: Exercise) => {
     setStatus('idle');
     setSelectedOption(null);
@@ -81,30 +91,29 @@ export default function LessonPlayerPage() {
     setSelectedPairLeft(null);
 
     if (ex.type === 'translate') {
-      const bank = [...(ex.content.word_bank || [])].sort(() => Math.random() - 0.5);
+      const bank = [...((ex.content.word_bank as string[]) || [])].sort(() => Math.random() - 0.5);
       setWordBank(bank);
     }
   };
 
-  // Handle checking answers
   const handleCheck = () => {
     if (!currentExercise) return;
     let isCorrect = false;
 
     if (currentExercise.type === 'multiple_choice') {
-      isCorrect = selectedOption?.correct === true;
+      isCorrect = (selectedOption as Option)?.correct === true;
     } else if (currentExercise.type === 'translate') {
       const userSentence = selectedWords.join(' ').toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
-      const targetSentence = currentExercise.content.correct_words.join(' ').toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
+      const targetSentence = ((currentExercise.content.correct_words as string[]) || []).join(' ').toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
       isCorrect = userSentence === targetSentence;
     } else if (currentExercise.type === 'match_pairs') {
-      const totalPairs = currentExercise.content.pairs.length;
+      const totalPairs = ((currentExercise.content.pairs as Pair[]) || []).length;
       isCorrect = matchedPairs.length === totalPairs;
     } else if (currentExercise.type === 'fill_blank') {
       isCorrect = selectedOption === currentExercise.content.correct_word;
     } else if (currentExercise.type === 'type_answer') {
       const cleanUser = typedAnswer.trim().toLowerCase();
-      const accepted = (currentExercise.content.accepted_answers || []).map((a: string) => a.trim().toLowerCase());
+      const accepted = ((currentExercise.content.accepted_answers as string[]) || []).map((a: string) => a.trim().toLowerCase());
       isCorrect = accepted.includes(cleanUser);
     }
 
@@ -122,7 +131,6 @@ export default function LessonPlayerPage() {
     }
   };
 
-  // Continue to next exercise or finish
   const handleContinue = async () => {
     if (!lesson) return;
 
@@ -131,7 +139,6 @@ export default function LessonPlayerPage() {
       setCurrentIndex(nextIdx);
       setupExercise(lesson.exercises[nextIdx]);
     } else {
-      // Lesson Finished! Submit result to API
       setIsCompleted(true);
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
       try {
@@ -156,7 +163,6 @@ export default function LessonPlayerPage() {
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-white dark:bg-duo-dark text-gray-800 dark:text-gray-100">
-      {/* Top Bar Navigation */}
       <header className="max-w-4xl mx-auto w-full px-4 pt-6 pb-4 flex items-center space-x-4">
         <button
           onClick={() => setShowQuitModal(true)}
@@ -165,7 +171,6 @@ export default function LessonPlayerPage() {
           <X className="w-7 h-7 stroke-[3]" />
         </button>
 
-        {/* Progress Bar */}
         <div className="flex-1 bg-gray-200 dark:bg-duo-dark-border h-4 rounded-full overflow-hidden">
           <div
             style={{ width: `${progressPercent}%` }}
@@ -173,7 +178,6 @@ export default function LessonPlayerPage() {
           />
         </div>
 
-        {/* Legendary Mode Timer or Hearts */}
         {isLegendary ? (
           <div className="flex items-center space-x-1.5 text-amber-500 font-black">
             <Clock className="w-6 h-6 animate-pulse" />
@@ -187,7 +191,6 @@ export default function LessonPlayerPage() {
         )}
       </header>
 
-      {/* Main Exercise Area */}
       <main className="max-w-2xl mx-auto w-full flex-1 px-4 py-8 flex flex-col justify-center">
         <h1 className="text-2xl sm:text-3xl font-black mb-8 text-gray-800 dark:text-white">
           {currentExercise.prompt}
@@ -196,8 +199,8 @@ export default function LessonPlayerPage() {
         {/* 1. MULTIPLE CHOICE */}
         {currentExercise.type === 'multiple_choice' && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {currentExercise.content.options.map((opt: any, idx: number) => {
-              const isSelected = selectedOption?.text === opt.text;
+            {((currentExercise.content.options as Option[]) || []).map((opt: Option, idx: number) => {
+              const isSelected = (selectedOption as Option)?.text === opt.text;
               return (
                 <button
                   key={idx}
@@ -220,11 +223,10 @@ export default function LessonPlayerPage() {
             <div className="p-4 bg-gray-50 dark:bg-duo-dark-card border-2 border-duo-gray dark:border-duo-dark-border rounded-2xl flex items-center space-x-3">
               <Volume2 className="w-6 h-6 text-duo-blue cursor-pointer" />
               <span className="text-xl font-bold text-gray-800 dark:text-white">
-                "{currentExercise.content.source_text}"
+                &quot;{currentExercise.content.source_text as string}&quot;
               </span>
             </div>
 
-            {/* Answer Row */}
             <div className="min-h-[70px] border-b-2 border-duo-gray dark:border-duo-dark-border p-2 flex flex-wrap gap-2.5 items-center">
               {selectedWords.map((word, idx) => (
                 <button
@@ -241,7 +243,6 @@ export default function LessonPlayerPage() {
               ))}
             </div>
 
-            {/* Word Bank */}
             <div className="flex flex-wrap gap-2.5 justify-center">
               {wordBank.map((word, idx) => (
                 <button
@@ -263,13 +264,12 @@ export default function LessonPlayerPage() {
         {/* 3. MATCH PAIRS */}
         {currentExercise.type === 'match_pairs' && (
           <div className="grid grid-cols-2 gap-4">
-            {currentExercise.content.pairs.map((pair: any, idx: number) => {
+            {((currentExercise.content.pairs as Pair[]) || []).map((pair: Pair, idx: number) => {
               const isMatched = matchedPairs.includes(pair.left);
               const isSelectedLeft = selectedPairLeft === pair.left;
 
               return (
                 <React.Fragment key={idx}>
-                  {/* Left item */}
                   <button
                     onClick={() => {
                       if (isMatched || status !== 'idle') return;
@@ -283,7 +283,6 @@ export default function LessonPlayerPage() {
                     {pair.left}
                   </button>
 
-                  {/* Right item */}
                   <button
                     onClick={() => {
                       if (isMatched || status !== 'idle' || !selectedPairLeft) return;
@@ -311,15 +310,15 @@ export default function LessonPlayerPage() {
         {currentExercise.type === 'fill_blank' && (
           <div className="space-y-8 text-center">
             <p className="text-2xl font-bold text-gray-800 dark:text-white">
-              {currentExercise.content.sentence_parts[0]}
+              {((currentExercise.content.sentence_parts as string[]) || [])[0]}
               <span className="underline decoration-duo-blue decoration-4 px-3 py-1 font-black text-duo-blue">
-                {selectedOption || '____'}
+                {(selectedOption as string) || '____'}
               </span>
-              {currentExercise.content.sentence_parts[1]}
+              {((currentExercise.content.sentence_parts as string[]) || [])[1]}
             </p>
 
             <div className="flex flex-wrap gap-3 justify-center">
-              {currentExercise.content.options.map((opt: string, idx: number) => (
+              {((currentExercise.content.options as string[]) || []).map((opt: string, idx: number) => (
                 <button
                   key={idx}
                   onClick={() => setSelectedOption(opt)}
@@ -340,7 +339,7 @@ export default function LessonPlayerPage() {
           <div className="space-y-6">
             <div className="p-4 bg-gray-50 dark:bg-duo-dark-card border-2 border-duo-gray dark:border-duo-dark-border rounded-2xl">
               <span className="text-xl font-bold text-gray-800 dark:text-white">
-                "{currentExercise.content.prompt_text}"
+                &quot;{currentExercise.content.prompt_text as string}&quot;
               </span>
             </div>
 
@@ -356,7 +355,6 @@ export default function LessonPlayerPage() {
         )}
       </main>
 
-      {/* Bottom Drawer Bar */}
       <footer
         className={`p-6 border-t-2 transition-all ${
           status === 'correct'
@@ -385,12 +383,12 @@ export default function LessonPlayerPage() {
                 <h3 className="text-xl font-black text-duo-red">Correct answer:</h3>
                 <p className="font-bold text-gray-700 dark:text-gray-200">
                   {currentExercise.type === 'multiple_choice'
-                    ? currentExercise.content.options.find((o: any) => o.correct)?.text
+                    ? ((currentExercise.content.options as Option[]) || []).find((o: Option) => o.correct)?.text
                     : currentExercise.type === 'translate'
-                    ? currentExercise.content.correct_words.join(' ')
+                    ? ((currentExercise.content.correct_words as string[]) || []).join(' ')
                     : currentExercise.type === 'fill_blank'
-                    ? currentExercise.content.correct_word
-                    : currentExercise.content.accepted_answers[0]}
+                    ? (currentExercise.content.correct_word as string)
+                    : ((currentExercise.content.accepted_answers as string[]) || [])[0]}
                 </p>
               </div>
             </div>
@@ -418,7 +416,6 @@ export default function LessonPlayerPage() {
         </div>
       </footer>
 
-      {/* Out of Hearts Modal */}
       {isOutOfHearts && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-duo-dark-card border-4 border-duo-red rounded-3xl max-w-md w-full p-6 text-center shadow-2xl space-y-4">
@@ -435,7 +432,7 @@ export default function LessonPlayerPage() {
                 }}
                 className="w-full btn-duo btn-duo-green py-3 text-lg"
               >
-                REFILL HEARTS & CONTINUE
+                REFILL HEARTS &amp; CONTINUE
               </button>
               <button
                 onClick={() => router.push('/')}
@@ -448,7 +445,6 @@ export default function LessonPlayerPage() {
         </div>
       )}
 
-      {/* Lesson Complete Modal */}
       {isCompleted && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-duo-dark-card border-4 border-duo-gold rounded-3xl max-w-md w-full p-6 text-center shadow-2xl space-y-5">
@@ -476,7 +472,6 @@ export default function LessonPlayerPage() {
         </div>
       )}
 
-      {/* Quit Confirmation Modal */}
       {showQuitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-duo-dark-card border-4 border-duo-gray rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4">
