@@ -226,6 +226,7 @@ export default function RegisterPage() {
             <GoogleSignIn
               buttonId="register-google"
               disabled={loading}
+              serverReady={serverReady}
               onSuccess={async (credential) => {
                 setError('');
                 setLoading(true);

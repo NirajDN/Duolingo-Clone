@@ -1,7 +1,45 @@
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || 'https://duolingo-clone-6092.onrender.com/api';
+import { API_BASE } from './constants';
 
 export { API_BASE };
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function pingHealth(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/health/`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data?.status === 'ok';
+    }
+    // Server responded (e.g. 404 before health deploy) — still awake
+    if (res.status === 404) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/** Wake Render free-tier backend — parallel pings, fast retries. */
+export async function wakeBackend(maxAttempts = 10): Promise<boolean> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const results = await Promise.all([pingHealth(), pingHealth(), pingHealth()]);
+    if (results.some(Boolean)) return true;
+    await wait(Math.min(800 + attempt * 400, 3000));
+  }
+  return false;
+}
+
+export async function ensureBackendReady(): Promise<void> {
+  const ready = await wakeBackend(12);
+  if (!ready) {
+    throw new Error('Server is waking up. Please wait 20 seconds and try again.');
+  }
+}
 
 export async function parseJsonResponse<T = unknown>(res: Response): Promise<T> {
   const text = await res.text();
@@ -9,16 +47,10 @@ export async function parseJsonResponse<T = unknown>(res: Response): Promise<T> 
     return JSON.parse(text) as T;
   } catch {
     if (text.trimStart().startsWith('<')) {
-      throw new Error(
-        'The server is waking up. Wait 30 seconds and try again, or use the button below.'
-      );
+      throw new Error('Server is waking up. Please wait a moment and try again.');
     }
     throw new Error('Unexpected server response. Please try again.');
   }
-}
-
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function responseLooksLikeHtml(res: Response): Promise<boolean> {
@@ -31,13 +63,16 @@ async function responseLooksLikeHtml(res: Response): Promise<boolean> {
 export async function fetchWithRetry(
   url: string,
   options: RequestInit = {},
-  retries = 5
+  retries = 4
 ): Promise<Response> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
-      const res = await fetch(url, options);
+      const res = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(30000),
+      });
 
       const shouldRetryStatus =
         res.status >= 502 || res.status === 503 || res.status === 504 || res.status === 429;
@@ -45,7 +80,7 @@ export async function fetchWithRetry(
       const isHtml = await responseLooksLikeHtml(res);
 
       if ((shouldRetryStatus || isHtml) && attempt < retries) {
-        await wait(2000 + attempt * 2000);
+        await wait(1000 + attempt * 1000);
         continue;
       }
 
@@ -53,20 +88,10 @@ export async function fetchWithRetry(
     } catch (err) {
       lastError = err instanceof Error ? err : new Error('Network request failed');
       if (attempt < retries) {
-        await wait(2000 + attempt * 2000);
+        await wait(1000 + attempt * 1000);
       }
     }
   }
 
   throw lastError ?? new Error('Network request failed');
-}
-
-/** Ping a public endpoint to wake Render free-tier backend before login. */
-export async function wakeBackend(): Promise<boolean> {
-  try {
-    const res = await fetchWithRetry(`${API_BASE}/leaderboard/`, { cache: 'no-store' }, 6);
-    return res.ok;
-  } catch {
-    return false;
-  }
 }

@@ -54,6 +54,13 @@ def unique_username_from_email(email: str) -> str:
 
 # ─── AUTH ENDPOINTS ──────────────────────────────────────────────────────────
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """GET /api/health/ — Lightweight ping for Render wake-up."""
+    return Response({'status': 'ok'})
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):

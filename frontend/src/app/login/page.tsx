@@ -185,6 +185,7 @@ export default function LoginPage() {
             <GoogleSignIn
               buttonId="login-google"
               disabled={loading}
+              serverReady={serverReady}
               onSuccess={async (credential) => {
                 setError('');
                 setLoading(true);

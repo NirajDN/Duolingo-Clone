@@ -104,7 +104,10 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_ID = os.environ.get(
+    'GOOGLE_CLIENT_ID',
+    '891167565350-6bgbmm3gbqrrba6fdk54lfm4g6ts6f8b.apps.googleusercontent.com',
+)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
