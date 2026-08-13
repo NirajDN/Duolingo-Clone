@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { fetchProfile, getCachedProfile, ProfileData } from '@/lib/api';
+import { fetchProfile, fetchLeaderboard, getCachedProfile, ProfileData } from '@/lib/api';
 import { AppShell } from '@/components/AppShell';
 import { MascotOwl } from '@/components/MascotOwl';
 import { useAuth } from '@/context/AuthContext';
@@ -32,6 +32,7 @@ export default function ProfilePage() {
 
   const loadProfile = useCallback(async () => {
     try {
+      void fetchLeaderboard().catch(() => {});
       const data = await fetchProfile();
       setProfile(data);
     } catch (err) {
@@ -112,7 +113,7 @@ export default function ProfilePage() {
                 <Shield className="w-7 h-7 sm:w-8 sm:h-8 text-duo-green fill-duo-green shrink-0" />
                 <div>
                   <span className="block text-xl sm:text-2xl font-black">
-                    #{profile.leaderboard?.rank ?? '—'}
+                    {profile.leaderboard?.rank ? `#${profile.leaderboard.rank}` : '—'}
                   </span>
                   <span className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase">Leaderboard Rank</span>
                 </div>

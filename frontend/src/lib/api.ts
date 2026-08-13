@@ -131,6 +131,31 @@ export function normalizeLeaderboardEntries(entries: LeaderboardEntry[]): Leader
   }));
 }
 
+function resolveLeaderboardRank(username: string, profileLb?: ProfileData['leaderboard']): number {
+  if (profileLb?.rank && profileLb.rank > 0) return profileLb.rank;
+  const entries = readStaleCache<LeaderboardEntry[]>('duo_leaderboard', getUserId());
+  if (!entries?.length) return 0;
+  const normalized = normalizeLeaderboardEntries(entries);
+  const idx = normalized.findIndex((e) => e.username === username);
+  return idx >= 0 ? idx + 1 : 0;
+}
+
+export function enrichProfile(profile: ProfileData): ProfileData {
+  const entries = readStaleCache<LeaderboardEntry[]>('duo_leaderboard', getUserId());
+  const normalized = entries?.length ? normalizeLeaderboardEntries(entries) : [];
+  const entry = normalized.find((e) => e.username === profile.username);
+  const rank = resolveLeaderboardRank(profile.username, profile.leaderboard);
+
+  return {
+    ...profile,
+    leaderboard: {
+      rank: rank || profile.leaderboard?.rank || 0,
+      weekly_xp: profile.leaderboard?.weekly_xp ?? entry?.weekly_xp ?? 0,
+      league: profile.leaderboard?.league ?? entry?.league ?? 'Gold',
+    },
+  };
+}
+
 export interface Achievement {
   id: number;
   title: string;
@@ -329,9 +354,10 @@ async function refreshLeaderboard(userId?: number): Promise<LeaderboardEntry[]> 
 
 async function refreshProfile(userId?: number): Promise<ProfileData> {
   const data = await authJson<ProfileData>(`${API_BASE}/user/profile/`);
-  writeCache('duo_profile', data, userId ?? getUserId());
-  writeCache('duo_stats', data.stats, userId ?? getUserId());
-  return data;
+  const enriched = enrichProfile(data);
+  writeCache('duo_profile', enriched, userId ?? getUserId());
+  writeCache('duo_stats', enriched.stats, userId ?? getUserId());
+  return enriched;
 }
 
 export function getCachedLeaderboard(): LeaderboardEntry[] | null {
@@ -340,7 +366,8 @@ export function getCachedLeaderboard(): LeaderboardEntry[] | null {
 }
 
 export function getCachedProfile(): ProfileData | null {
-  return readStaleCache<ProfileData>('duo_profile', getUserId());
+  const cached = readStaleCache<ProfileData>('duo_profile', getUserId());
+  return cached ? enrichProfile(cached) : null;
 }
 
 export function prefetchLeaderboard(userId?: number) {
@@ -524,14 +551,19 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
 export async function fetchProfile(): Promise<ProfileData> {
   const userId = getUserId();
   const stale = readStaleCache<ProfileData>('duo_profile', userId);
-  if (stale && !stale.leaderboard) {
+  const enrichedStale = stale ? enrichProfile(stale) : null;
+
+  if (!enrichedStale?.leaderboard?.rank) {
     try {
       return await refreshProfile(userId);
-    } catch {
-      return fetchWithStaleCache('duo_profile', () => refreshProfile(), userId);
+    } catch (err) {
+      if (enrichedStale) return enrichedStale;
+      throw err;
     }
   }
-  return fetchWithStaleCache('duo_profile', () => refreshProfile(), userId);
+
+  void refreshProfile(userId).catch(() => {});
+  return enrichedStale;
 }
 
 export function invalidateProfileCache() {
