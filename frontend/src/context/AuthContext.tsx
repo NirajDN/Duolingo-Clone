@@ -17,7 +17,6 @@ interface AuthContextValue {
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
-  loginWithGoogle: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -114,22 +113,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace('/');
   }, [router, persistSession]);
 
-  const loginWithGoogle = useCallback(async (idToken: string) => {
-    await ensureBackendReady();
-    const data = await authRequest<{
-      access: string;
-      refresh: string;
-      user: AuthUser;
-    }>(`${API_BASE}/auth/google/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_token: idToken }),
-    });
-
-    persistSession(data);
-    router.replace('/');
-  }, [router, persistSession]);
-
   const logout = useCallback(async () => {
     const refresh = localStorage.getItem('duo_refresh');
     try {
@@ -152,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

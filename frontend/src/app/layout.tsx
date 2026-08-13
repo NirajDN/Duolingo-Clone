@@ -28,7 +28,6 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="preconnect" href="https://duolingo-clone-6092.onrender.com" />
-        <link rel="preconnect" href="https://accounts.google.com" />
         <link rel="dns-prefetch" href="https://duolingo-clone-6092.onrender.com" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>

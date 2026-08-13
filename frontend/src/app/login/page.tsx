@@ -3,28 +3,16 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { useBackendWake } from '@/hooks/useBackendWake';
 import { MascotOwl } from '@/components/MascotOwl';
-import { GoogleSignIn } from '@/components/GoogleSignIn';
-import { ServerStatusBanner } from '@/components/ServerStatusBanner';
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
-  const { login, loginWithGoogle } = useAuth();
-  const { serverReady, wakingServer, retryWake } = useBackendWake();
+  const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const handleRetry = async () => {
-    setError('');
-    const ok = await retryWake();
-    if (!ok) {
-      setError('Server is still starting. Wait 30 seconds and try again.');
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,12 +50,6 @@ export default function LoginPage() {
               <h1 className="text-3xl font-black text-gray-800 tracking-tight">Welcome back!</h1>
               <p className="text-gray-500 font-bold mt-1 text-sm">Log in to continue your streak 🔥</p>
             </div>
-
-            <ServerStatusBanner
-              wakingServer={wakingServer}
-              serverReady={serverReady}
-              onRetry={handleRetry}
-            />
 
             {error && (
               <div className="mb-5 flex items-center gap-2 bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-2xl font-bold text-sm">
@@ -125,36 +107,13 @@ export default function LoginPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    {serverReady ? 'Logging in...' : 'Connecting to server...'}
+                    Logging in...
                   </>
                 ) : (
                   'LOG IN'
                 )}
               </button>
             </form>
-
-            <div className="flex items-center gap-3 my-6">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs font-black text-gray-400 uppercase tracking-widest">or</span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
-
-            <GoogleSignIn
-              buttonId="login-google"
-              disabled={loading}
-              onSuccess={async (credential) => {
-                setError('');
-                setLoading(true);
-                try {
-                  await loginWithGoogle(credential);
-                } catch (err: unknown) {
-                  setError(err instanceof Error ? err.message : 'Google sign-in failed.');
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              onError={setError}
-            />
 
             <p className="text-center mt-6 text-sm font-bold text-gray-500">
               Don&apos;t have an account?{' '}

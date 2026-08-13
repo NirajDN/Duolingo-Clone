@@ -3,10 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { useBackendWake } from '@/hooks/useBackendWake';
 import { MascotOwl } from '@/components/MascotOwl';
-import { GoogleSignIn } from '@/components/GoogleSignIn';
-import { ServerStatusBanner } from '@/components/ServerStatusBanner';
 import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 function PasswordStrength({ password }: { password: string }) {
@@ -29,22 +26,13 @@ function PasswordStrength({ password }: { password: string }) {
 }
 
 export default function RegisterPage() {
-  const { register, loginWithGoogle } = useAuth();
-  const { serverReady, wakingServer, retryWake } = useBackendWake();
+  const { register } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const handleRetry = async () => {
-    setError('');
-    const ok = await retryWake();
-    if (!ok) {
-      setError('Server is still starting. Wait 30 seconds and try again.');
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +57,6 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1CB0F6] via-[#0d96d4] to-[#0a7ab0] flex items-center justify-center p-4">
-      {/* Background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
@@ -77,13 +64,10 @@ export default function RegisterPage() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Card */}
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-          {/* Top accent */}
           <div className="h-2 bg-gradient-to-r from-[#1CB0F6] via-[#58CC02] to-[#FFC800]" />
 
           <div className="p-8">
-            {/* Logo + Mascot */}
             <div className="text-center mb-8">
               <div className="flex justify-center mb-3">
                 <MascotOwl emotion="celebrating" width={80} height={80} />
@@ -92,13 +76,6 @@ export default function RegisterPage() {
               <p className="text-gray-500 font-bold mt-1 text-sm">Join millions of learners today! 🌍</p>
             </div>
 
-            <ServerStatusBanner
-              wakingServer={wakingServer}
-              serverReady={serverReady}
-              onRetry={handleRetry}
-            />
-
-            {/* Error */}
             {error && (
               <div className="mb-5 flex items-center gap-2 bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-2xl font-bold text-sm">
                 <AlertCircle className="w-4 h-4 shrink-0" />
@@ -107,7 +84,6 @@ export default function RegisterPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Username */}
               <div>
                 <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">
                   Username <span className="text-red-400">*</span>
@@ -123,7 +99,6 @@ export default function RegisterPage() {
                 />
               </div>
 
-              {/* Email */}
               <div>
                 <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">
                   Email <span className="text-gray-400 font-bold normal-case text-xs">(optional)</span>
@@ -139,7 +114,6 @@ export default function RegisterPage() {
                 />
               </div>
 
-              {/* Password */}
               <div>
                 <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">
                   Password <span className="text-red-400">*</span>
@@ -165,7 +139,6 @@ export default function RegisterPage() {
                 <PasswordStrength password={password} />
               </div>
 
-              {/* Submit */}
               <button
                 id="register-submit"
                 type="submit"
@@ -175,7 +148,7 @@ export default function RegisterPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    {serverReady ? 'Creating account...' : 'Connecting to server...'}
+                    Creating account...
                   </>
                 ) : (
                   'CREATE ACCOUNT'
@@ -183,31 +156,6 @@ export default function RegisterPage() {
               </button>
             </form>
 
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-6">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs font-black text-gray-400 uppercase tracking-widest">or</span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
-
-            <GoogleSignIn
-              buttonId="register-google"
-              disabled={loading}
-              onSuccess={async (credential) => {
-                setError('');
-                setLoading(true);
-                try {
-                  await loginWithGoogle(credential);
-                } catch (err: unknown) {
-                  setError(err instanceof Error ? err.message : 'Google sign-in failed.');
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              onError={setError}
-            />
-
-            {/* Login link */}
             <p className="text-center mt-6 text-sm font-bold text-gray-500">
               Already have an account?{' '}
               <Link href="/login" className="text-[#58CC02] hover:underline font-black">
@@ -215,7 +163,6 @@ export default function RegisterPage() {
               </Link>
             </p>
 
-            {/* Terms */}
             <p className="text-center mt-3 text-xs text-gray-400 font-bold">
               By signing up you agree to our{' '}
               <span className="text-gray-500 underline cursor-pointer">Terms</span>
@@ -225,7 +172,6 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center mt-6 text-white/70 text-xs font-bold">
           🦜 Duolingo Clone
         </p>
