@@ -3,11 +3,13 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Trophy, User, Settings, Sparkles } from 'lucide-react';
+import { Home, Trophy, User, Settings, Sparkles, LogOut } from 'lucide-react';
 import { MascotOwl } from './MascotOwl';
+import { useAuth } from '@/context/AuthContext';
 
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
 
   const navItems = [
     { label: 'LEARN', href: '/', icon: Home, color: 'text-duo-green' },
@@ -47,6 +49,29 @@ export const Sidebar: React.FC = () => {
           );
         })}
       </nav>
+
+      {/* User Info + Logout */}
+      {user && (
+        <div className="mb-3 px-3 py-3 bg-gray-50 dark:bg-duo-dark-card rounded-2xl border-2 border-gray-100 dark:border-duo-dark-border">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-9 h-9 rounded-full bg-duo-green flex items-center justify-center text-white font-black text-sm">
+              {user.username.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-sm text-gray-800 dark:text-gray-100 truncate">{user.username}</p>
+              <p className="text-xs text-gray-400 font-bold truncate">{user.email || 'No email'}</p>
+            </div>
+          </div>
+          <button
+            id="sidebar-logout"
+            onClick={logout}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-black text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors border-2 border-red-100 dark:border-red-900/30"
+          >
+            <LogOut className="w-4 h-4" />
+            LOG OUT
+          </button>
+        </div>
+      )}
 
       {/* Footer / Info Card */}
       <div className="p-4 bg-green-50 dark:bg-duo-dark-card border-2 border-duo-green/30 rounded-2xl text-center space-y-2">

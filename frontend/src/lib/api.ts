@@ -1,5 +1,24 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://duolingo-clone-6092.onrender.com/api';
 
+// ─── Auth helpers ─────────────────────────────────────────────────────────────
+function getAuthHeaders(): HeadersInit {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('duo_access') : null;
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function authFetch(url: string, options: RequestInit = {}) {
+  const res = await fetch(url, {
+    ...options,
+    headers: { ...getAuthHeaders(), ...(options.headers || {}) },
+    cache: 'no-store',
+  });
+  return res;
+}
+
+// ─── Interfaces ───────────────────────────────────────────────────────────────
 export interface Skill {
   id: number;
   title: string;
@@ -76,22 +95,22 @@ export interface ProfileData {
   achievements: Achievement[];
 }
 
+// ─── API Functions ────────────────────────────────────────────────────────────
 export async function fetchPath(): Promise<Unit[]> {
-  const res = await fetch(`${API_BASE}/path/`, { cache: 'no-store' });
+  const res = await authFetch(`${API_BASE}/path/`);
   if (!res.ok) throw new Error('Failed to fetch learning path');
   return res.json();
 }
 
 export async function fetchSkillLesson(skillId: number): Promise<Lesson> {
-  const res = await fetch(`${API_BASE}/skills/${skillId}/lesson/`, { cache: 'no-store' });
+  const res = await authFetch(`${API_BASE}/skills/${skillId}/lesson/`);
   if (!res.ok) throw new Error('Failed to fetch lesson');
   return res.json();
 }
 
 export async function submitLessonResult(lessonId: number, score: number, heartsLost: number) {
-  const res = await fetch(`${API_BASE}/lessons/${lessonId}/complete/`, {
+  const res = await authFetch(`${API_BASE}/lessons/${lessonId}/complete/`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ score, hearts_lost: heartsLost }),
   });
   if (!res.ok) throw new Error('Failed to submit lesson result');
@@ -99,28 +118,25 @@ export async function submitLessonResult(lessonId: number, score: number, hearts
 }
 
 export async function fetchUserStats(): Promise<UserStats> {
-  const res = await fetch(`${API_BASE}/user/stats/`, { cache: 'no-store' });
+  const res = await authFetch(`${API_BASE}/user/stats/`);
   if (!res.ok) throw new Error('Failed to fetch user stats');
   return res.json();
 }
 
 export async function refillHearts() {
-  const res = await fetch(`${API_BASE}/user/hearts/refill/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
+  const res = await authFetch(`${API_BASE}/user/hearts/refill/`, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to refill hearts');
   return res.json();
 }
 
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
-  const res = await fetch(`${API_BASE}/leaderboard/`, { cache: 'no-store' });
+  const res = await authFetch(`${API_BASE}/leaderboard/`);
   if (!res.ok) throw new Error('Failed to fetch leaderboard');
   return res.json();
 }
 
 export async function fetchProfile(): Promise<ProfileData> {
-  const res = await fetch(`${API_BASE}/user/profile/`, { cache: 'no-store' });
+  const res = await authFetch(`${API_BASE}/user/profile/`);
   if (!res.ok) throw new Error('Failed to fetch user profile');
   return res.json();
 }
