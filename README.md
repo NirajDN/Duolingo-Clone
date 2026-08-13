@@ -307,7 +307,7 @@ Render Shell may require a paid plan. Use **live Django Admin** in your browser 
 
 Refresh the page to see new users after someone registers on Vercel.
 
-> **Render free tier note:** SQLite on free tier may reset when the service redeploys or sleeps for a long time. For permanent production data, use a free PostgreSQL database ([Neon](https://neon.tech) or [Supabase](https://supabase.com)) and set `DATABASE_URL` on Render.
+> **Render free tier note:** SQLite on Render's ephemeral disk can reset on redeploy. For **permanent** user data, connect a free PostgreSQL database (Neon) — see below.
 
 ### Production (Render Shell — if available on your plan)
 
@@ -315,6 +315,67 @@ Refresh the page to see new users after someone registers on Vercel.
 
 For raw file access locally, open `backend/db.sqlite3` in [DB Browser for SQLite](https://sqlitebrowser.org/).  
 Live Render data is **not** in your local file — use Django Admin on Render for production users.
+
+---
+
+## Permanent production database (Neon PostgreSQL — free)
+
+Render's free SQLite file can wipe on redeploy. Use **Neon** (free PostgreSQL) so user signups persist forever.
+
+### Step 1 — Create Neon database
+
+1. Sign up at [neon.tech](https://neon.tech) (free, no credit card)
+2. Click **New Project**
+   - Name: `duolingo-clone`
+   - Region: pick closest to your Render region (e.g. `US East`)
+3. After creation, open your project → **Dashboard**
+4. Copy the **connection string** (Connection details → **URI**)
+   - Example:
+     ```
+     postgresql://neondb_owner:AbCdEf123@ep-cool-name-12345678.us-east-2.aws.neon.tech/neondb?sslmode=require
+     ```
+   - Use the **pooled** connection string if Neon shows two options (better for cloud hosts)
+
+### Step 2 — Add to Render
+
+1. [Render Dashboard](https://dashboard.render.com) → your **backend** service
+2. **Environment** → **Add Environment Variable**
+
+| Key | Value |
+|---|---|
+| `DATABASE_URL` | Paste the full Neon connection string |
+
+3. **Save Changes** → Render redeploys automatically (~3–5 min)
+
+On deploy, Django runs `migrate`, `seed_data`, and `ensure_superuser` against PostgreSQL automatically.
+
+### Step 3 — Verify
+
+1. Wait for Render deploy to finish (green **Live**)
+2. Register a test user on https://duolingo-clone-liart.vercel.app/register
+3. Open https://duolingo-clone-6092.onrender.com/admin/ → **Users**
+4. Redeploy Render again (Manual Deploy) → user should **still be there** ✅
+
+### Local development (optional)
+
+Keep using SQLite locally — do **not** set `DATABASE_URL` on your PC unless you want to share the Neon DB locally.
+
+To test Neon locally:
+```bash
+# backend/.env
+DATABASE_URL=postgresql://...your-neon-uri...
+```
+Then:
+```bash
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py seed_data
+python manage.py runserver
+```
+
+### Supabase alternative
+
+Same idea — create a project at [supabase.com](https://supabase.com) → **Settings → Database → Connection string (URI)** → paste as `DATABASE_URL` on Render.
 
 ---
 
