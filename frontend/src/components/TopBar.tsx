@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Flame, Zap, Heart, Gem, Moon, Sun } from 'lucide-react';
 import { refillHearts } from '@/lib/api';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
+import { useTheme } from '@/context/ThemeContext';
 
 interface TopBarProps {
   streak?: number;
@@ -22,18 +23,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   gems = 500,
   onStatsRefresh,
 }) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
   const [showHeartModal, setShowHeartModal] = useState(false);
   const [loadingRefill, setLoadingRefill] = useState(false);
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-    if (!isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  };
 
   const handleRefill = async () => {
     try {
@@ -93,11 +85,11 @@ export const TopBar: React.FC<TopBarProps> = ({
 
           {/* Dark Mode Toggle */}
           <button
-            onClick={toggleDarkMode}
+            onClick={toggleTheme}
             className="p-1.5 sm:p-2 rounded-xl text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-duo-dark-card transition-colors"
-            title="Toggle Dark Mode"
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {isDarkMode ? <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-duo-gold" /> : <Moon className="w-4 h-4 sm:w-5 sm:h-5" />}
+            {isDark ? <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-duo-gold" /> : <Moon className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
         </div>
       </header>

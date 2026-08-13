@@ -2,6 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { AuthProvider } from '@/context/AuthContext';
+import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthGate } from '@/components/AuthGate';
 import { keepBackendAlive, startBackendWake } from '@/lib/http';
 
@@ -15,9 +16,11 @@ function BackendPrewarm() {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <AuthProvider>
-      <BackendPrewarm />
-      <AuthGate>{children}</AuthGate>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <BackendPrewarm />
+        <AuthGate>{children}</AuthGate>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
