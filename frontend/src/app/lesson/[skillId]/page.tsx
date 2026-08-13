@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import confetti from 'canvas-confetti';
 import { X, Heart, Check, Volume2, Clock, RefreshCw, Flame, Unlock, Zap } from 'lucide-react';
-import { fetchSkillLesson, resolveSkillLesson, submitLessonResult, Lesson, Exercise, LessonCompletionResult } from '@/lib/api';
+import { fetchSkillLesson, resolveSkillLesson, submitLessonResultInBackground, stageOptimisticLessonCompletion, Lesson, Exercise, LessonCompletionResult } from '@/lib/api';
 import { MascotOwl } from '@/components/MascotOwl';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
 
@@ -95,7 +95,6 @@ export default function LessonPlayerPage() {
   const [isOutOfHearts, setIsOutOfHearts] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [completionResult, setCompletionResult] = useState<LessonCompletionResult | null>(null);
-  const [submittingResult, setSubmittingResult] = useState(false);
 
   // Timer for Legendary Mode
   const [timeLeft, setTimeLeft] = useState(60);
@@ -203,14 +202,18 @@ export default function LessonPlayerPage() {
       setCurrentIndex(nextIdx);
       setupExercise(lesson.exercises[nextIdx]);
     } else {
-      setIsCompleted(true);
-      setSubmittingResult(true);
-      confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
       const score = Math.round(((lesson.exercises.length - heartsLost) / lesson.exercises.length) * 100);
-      submitLessonResult(lesson.id, Math.max(0, score), heartsLost, skillId)
-        .then((result) => setCompletionResult(result))
-        .catch((err) => console.error('Error submitting lesson results:', err))
-        .finally(() => setSubmittingResult(false));
+      const optimistic = stageOptimisticLessonCompletion(skillId, lesson, heartsLost);
+      setCompletionResult(optimistic);
+      setIsCompleted(true);
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      submitLessonResultInBackground(
+        lesson.id,
+        Math.max(0, score),
+        heartsLost,
+        skillId,
+        (result) => setCompletionResult(result)
+      );
     }
   };
 
@@ -612,10 +615,9 @@ export default function LessonPlayerPage() {
           <div className="p-4 sm:p-6 border-t-2 border-duo-dark-border bg-duo-dark-card">
             <button
               onClick={() => router.push('/')}
-              disabled={submittingResult}
-              className="w-full max-w-lg mx-auto block btn-duo btn-duo-blue py-3.5 text-lg disabled:opacity-70"
+              className="w-full max-w-lg mx-auto block btn-duo btn-duo-blue py-3.5 text-lg"
             >
-              {submittingResult ? 'Saving progress...' : 'CONTINUE'}
+              CONTINUE
             </button>
           </div>
         </div>

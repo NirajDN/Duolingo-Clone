@@ -288,6 +288,99 @@ export function applyLessonCompletionToCache(
   cacheDashboard({ path, stats });
 }
 
+function findSkillInPath(path: Unit[], skillId: number): { skill: Skill; unit: Unit } | null {
+  for (const unit of path) {
+    const skill = unit.skills.find((s) => s.id === skillId);
+    if (skill) return { skill, unit };
+  }
+  return null;
+}
+
+function predictNextSkillId(path: Unit[], skillId: number): number | null {
+  for (let uIdx = 0; uIdx < path.length; uIdx += 1) {
+    const unit = path[uIdx];
+    const sIdx = unit.skills.findIndex((s) => s.id === skillId);
+    if (sIdx < 0) continue;
+    if (sIdx + 1 < unit.skills.length) return unit.skills[sIdx + 1].id;
+    if (uIdx + 1 < path.length) {
+      const nextUnit = path[uIdx + 1];
+      if (nextUnit.skills.length > 0) return nextUnit.skills[0].id;
+    }
+    return null;
+  }
+  return null;
+}
+
+/** Instant UI values while the server saves in the background. */
+export function buildOptimisticLessonResult(
+  skillId: number,
+  lesson: Lesson,
+  heartsLost: number
+): LessonCompletionResult | null {
+  const cached = getCachedDashboard();
+  if (!cached) return null;
+
+  const located = findSkillInPath(cached.path, skillId);
+  if (!located) return null;
+
+  const { skill } = located;
+  const completedLessons = skill.completed_lessons + 1;
+  const lessonsDone = completedLessons >= skill.total_lessons;
+  const nextCrown = lessonsDone
+    ? Math.min(skill.total_crowns, skill.current_crown + 1)
+    : skill.current_crown;
+  const skillCompleted = lessonsDone && nextCrown >= skill.total_crowns;
+  const xpGained = lesson.xp_reward || 10;
+  const today = new Date().toISOString().slice(0, 10);
+  const lastActive = cached.stats.last_active_date;
+  let streak = cached.stats.streak;
+  let streakIncreased = false;
+
+  if (!lastActive) {
+    streak = 1;
+    streakIncreased = true;
+  } else if (lastActive !== today) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().slice(0, 10);
+    streak = lastActive === yesterdayStr ? streak + 1 : 1;
+    streakIncreased = true;
+  }
+
+  return {
+    xp_gained: xpGained,
+    new_total_xp: cached.stats.xp + xpGained,
+    streak,
+    hearts: Math.max(0, cached.stats.hearts - heartsLost),
+    skill_completed: skillCompleted,
+    completed_lessons: completedLessons,
+    current_crown: nextCrown,
+    next_skill_unlocked_id: predictNextSkillId(cached.path, skillId),
+    streak_increased: streakIncreased,
+    leaderboard_rank: 0,
+    weekly_xp: 0,
+    league: 'Gold',
+  };
+}
+
+export function stageOptimisticLessonCompletion(
+  skillId: number,
+  lesson: Lesson,
+  heartsLost: number
+): LessonCompletionResult | null {
+  const optimistic = buildOptimisticLessonResult(skillId, lesson, heartsLost);
+  if (!optimistic) return null;
+
+  applyLessonCompletionToCache(skillId, optimistic);
+  setLessonCompleteHighlight({
+    skillId,
+    nextSkillId: optimistic.next_skill_unlocked_id,
+    streakIncreased: optimistic.streak_increased,
+    xpGained: optimistic.xp_gained,
+  });
+  return optimistic;
+}
+
 export function setLessonCompleteHighlight(highlight: LessonCompleteHighlight) {
   if (typeof window === 'undefined') return;
   try {
@@ -530,6 +623,19 @@ export async function submitLessonResult(
   void refreshLeaderboard().catch(() => {});
   void refreshProfile().catch(() => {});
   return result;
+}
+
+/** Fire-and-forget save; reconciles cache when the server responds. */
+export function submitLessonResultInBackground(
+  lessonId: number,
+  score: number,
+  heartsLost: number,
+  skillId: number,
+  onResult?: (result: LessonCompletionResult) => void
+) {
+  void submitLessonResult(lessonId, score, heartsLost, skillId)
+    .then((result) => onResult?.(result))
+    .catch((err) => console.error('Background lesson save failed:', err));
 }
 
 export async function fetchUserStats(): Promise<UserStats> {

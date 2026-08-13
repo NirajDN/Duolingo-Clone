@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   fetchDashboard,
@@ -95,9 +95,27 @@ export default function HomePage() {
     );
   };
 
-  const getHorizontalOffset = (index: number) => {
-    const offsets = [0, -45, -30, 0, 30, 45, 20, 0, -25];
-    return offsets[index % offsets.length];
+  const PATH_OFFSETS = [0, -58, -36, 0, 36, 58, 36, 0, -36, -58];
+  const PATH_ROW_HEIGHT = 108;
+  const PATH_CENTER_X = 140;
+
+  const getHorizontalOffset = (index: number) =>
+    PATH_OFFSETS[index % PATH_OFFSETS.length];
+
+  const buildSkillPath = (count: number) => {
+    if (count < 2) return '';
+    const nodeY = (i: number) => 40 + i * PATH_ROW_HEIGHT;
+    const nodeX = (i: number) => PATH_CENTER_X + getHorizontalOffset(i);
+    let d = '';
+    for (let i = 0; i < count - 1; i++) {
+      const x1 = nodeX(i);
+      const y1 = nodeY(i);
+      const x2 = nodeX(i + 1);
+      const y2 = nodeY(i + 1);
+      const midY = (y1 + y2) / 2;
+      d += `M ${x1} ${y1} C ${x1} ${midY} ${x2} ${midY} ${x2} ${y2} `;
+    }
+    return d.trim();
   };
 
   const showPath = units.length > 0;
@@ -164,18 +182,44 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                <div className="flex flex-col items-center relative py-2">
+                <div
+                  className="relative w-full max-w-[280px] mx-auto py-2"
+                  style={{
+                    minHeight: unit.skills.length * PATH_ROW_HEIGHT + 24,
+                  }}
+                >
+                  {unit.skills.length > 1 && (
+                    <svg
+                      className="absolute left-1/2 top-2 -translate-x-1/2 w-[280px] pointer-events-none overflow-visible"
+                      style={{ height: unit.skills.length * PATH_ROW_HEIGHT + 24 }}
+                      viewBox={`0 0 280 ${unit.skills.length * PATH_ROW_HEIGHT + 24}`}
+                      aria-hidden
+                    >
+                      <path
+                        d={buildSkillPath(unit.skills.length)}
+                        fill="none"
+                        className="stroke-[#37464F] dark:stroke-[#37464F]"
+                        strokeWidth="10"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+
+                  <div className="relative z-10 flex flex-col items-center">
                   {unit.skills.map((skill, sIdx) => {
                     const offset = getHorizontalOffset(sIdx);
                     const isNext = skill.is_unlocked && !skill.is_completed && skill.completed_lessons === 0;
                     const isNewlyUnlocked = highlightSkillId === skill.id;
 
                     return (
-                      <React.Fragment key={skill.id}>
-                        {sIdx > 0 && <div className="duo-path-line my-1" aria-hidden />}
                       <div
-                        style={{ transform: `translateX(${offset}px)` }}
-                        className="relative flex flex-col items-center group transition-transform duration-300 my-2"
+                        key={skill.id}
+                        style={{
+                          transform: `translateX(${offset}px)`,
+                          height: PATH_ROW_HEIGHT,
+                        }}
+                        className="relative flex flex-col items-center justify-start group transition-transform duration-300"
                       >
                         {(isNext || isNewlyUnlocked) && (
                           <div className={`absolute -top-10 sm:-top-12 z-20 bg-white dark:bg-duo-dark-card border-2 border-duo-green px-3 py-1 rounded-xl shadow-md font-black text-xs text-duo-green flex items-center space-x-1.5 ${isNewlyUnlocked ? 'animate-bounce-in' : 'animate-bounce'}`}>
@@ -216,9 +260,9 @@ export default function HomePage() {
                           {skill.title}
                         </span>
                       </div>
-                      </React.Fragment>
                     );
                   })}
+                  </div>
                 </div>
               </div>
             ))}

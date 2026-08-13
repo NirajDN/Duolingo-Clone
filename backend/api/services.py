@@ -52,7 +52,7 @@ def calculate_user_hearts(stats: UserStats, current_datetime=None) -> UserStats:
     return stats
 
 
-def update_user_streak(stats: UserStats, activity_date=None) -> int:
+def update_user_streak(stats: UserStats, activity_date=None, *, persist: bool = True) -> int:
     """
     Testable streak calculation logic allowing explicit date injection.
     """
@@ -73,7 +73,8 @@ def update_user_streak(stats: UserStats, activity_date=None) -> int:
         stats.streak = 1
         stats.last_active_date = today
 
-    stats.save()
+    if persist:
+        stats.save()
     return stats.streak
 
 
@@ -111,22 +112,31 @@ def recalculate_leaderboard_ranks():
             entry.save(update_fields=['rank'])
 
 
-def update_user_achievements(user, stats: UserStats):
+def update_user_achievements(user, stats: UserStats, categories=None):
     """Sync achievement progress from live user stats."""
-    completed_skills = UserProgress.objects.filter(user=user, is_completed=True).count()
-    perfect_lessons = UserLessonAttempt.objects.filter(user=user, score=100).count()
-    lb = LeaderboardEntry.objects.filter(user=user).first()
-    league_is_gold = bool(lb and lb.league == ACTIVE_LEAGUE)
+    if categories is None:
+        categories = ['streak', 'xp', 'skills', 'accuracy', 'league']
 
-    category_progress = {
-        'streak': stats.streak,
-        'xp': stats.xp,
-        'skills': completed_skills,
-        'accuracy': perfect_lessons,
-        'league': 1 if league_is_gold else 0,
-    }
+    category_progress = {}
+    if 'streak' in categories:
+        category_progress['streak'] = stats.streak
+    if 'xp' in categories:
+        category_progress['xp'] = stats.xp
+    if 'skills' in categories:
+        category_progress['skills'] = UserProgress.objects.filter(
+            user=user, is_completed=True
+        ).count()
+    if 'accuracy' in categories:
+        category_progress['accuracy'] = UserLessonAttempt.objects.filter(
+            user=user, score=100
+        ).count()
+    if 'league' in categories:
+        lb = LeaderboardEntry.objects.filter(user=user).first()
+        league_is_gold = bool(lb and lb.league == ACTIVE_LEAGUE)
+        category_progress['league'] = 1 if league_is_gold else 0
 
-    for ach in Achievement.objects.all():
+    achievements = Achievement.objects.filter(category__in=categories)
+    for ach in achievements:
         progress_val = category_progress.get(ach.category, 0)
         ua, _ = UserAchievement.objects.get_or_create(user=user, achievement=ach)
         ua.current_progress = min(progress_val, ach.max_progress)
@@ -164,7 +174,7 @@ def record_lesson_completion(user, lesson: Lesson, score: int, hearts_lost: int,
 
     # 3. Update Streak
     old_streak = stats.streak
-    update_user_streak(stats, activity_date=today)
+    update_user_streak(stats, activity_date=today, persist=False)
     streak_increased = stats.streak > old_streak
     stats.save()
 
@@ -183,11 +193,7 @@ def record_lesson_completion(user, lesson: Lesson, score: int, hearts_lost: int,
     lb.weekly_xp += xp_gained
     ensure_active_league(lb)
     lb.save()
-    recalculate_leaderboard_ranks()
     leaderboard_rank = get_leaderboard_rank(user)
-
-    # 5b. Sync achievements
-    update_user_achievements(user, stats)
 
     # 6. Update Skill Progress & Unlock Next
     skill = lesson.skill
@@ -217,6 +223,15 @@ def record_lesson_completion(user, lesson: Lesson, score: int, hearts_lost: int,
         next_progress.is_unlocked = True
         next_progress.save()
         next_skill_id = next_skill.id
+
+    achievement_categories = ['xp']
+    if streak_increased:
+        achievement_categories.append('streak')
+    if progress.is_completed:
+        achievement_categories.append('skills')
+    if score == 100:
+        achievement_categories.append('accuracy')
+    update_user_achievements(user, stats, categories=achievement_categories)
 
     return {
         'xp_gained': xp_gained,
