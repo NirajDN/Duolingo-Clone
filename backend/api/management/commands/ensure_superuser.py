@@ -1,5 +1,5 @@
 """
-Create a Django superuser from environment variables if one does not exist yet.
+Create or update a Django superuser from environment variables.
 Used on Render deploy so /admin/ works without paid Shell access.
 """
 from django.core.management.base import BaseCommand
@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 
 
 class Command(BaseCommand):
-    help = 'Create superuser from DJANGO_SUPERUSER_* env vars (skips if username exists).'
+    help = 'Create or update superuser from DJANGO_SUPERUSER_* environment variables.'
 
     def handle(self, *args, **options):
         import os
@@ -25,8 +25,19 @@ class Command(BaseCommand):
             )
             return
 
-        if User.objects.filter(username=username).exists():
-            self.stdout.write(self.style.SUCCESS(f'Superuser "{username}" already exists.'))
+        user = User.objects.filter(username=username).first()
+
+        if user:
+            user.set_password(password)
+            user.is_staff = True
+            user.is_superuser = True
+            user.is_active = True
+            if email:
+                user.email = email
+            user.save()
+            self.stdout.write(
+                self.style.SUCCESS(f'Superuser "{username}" password and permissions updated.')
+            )
             return
 
         User.objects.create_superuser(
