@@ -33,13 +33,14 @@ class SkillPathSerializer(serializers.ModelSerializer):
     completed_lessons = serializers.SerializerMethodField()
     current_crown = serializers.SerializerMethodField()
     total_lessons = serializers.SerializerMethodField()
+    lesson = serializers.SerializerMethodField()
 
     class Meta:
         model = Skill
         fields = [
             'id', 'title', 'icon', 'order', 'total_crowns',
             'is_unlocked', 'is_completed', 'completed_lessons',
-            'current_crown', 'total_lessons'
+            'current_crown', 'total_lessons', 'lesson',
         ]
 
     def get_user_progress(self, obj):
@@ -73,6 +74,14 @@ class SkillPathSerializer(serializers.ModelSerializer):
     def get_total_lessons(self, obj):
         lessons = obj.lessons.all()
         return len(lessons) or 1
+
+    def get_lesson(self, obj):
+        if not self.get_is_unlocked(obj):
+            return None
+        first_lesson = obj.lessons.first()
+        if not first_lesson:
+            return None
+        return LessonSerializer(first_lesson).data
 
 
 class UnitPathSerializer(serializers.ModelSerializer):

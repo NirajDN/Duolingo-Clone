@@ -68,6 +68,7 @@ export interface Skill {
   completed_lessons: number;
   current_crown: number;
   total_lessons: number;
+  lesson?: Lesson | null;
 }
 
 export interface Unit {
@@ -158,11 +159,32 @@ export interface LessonCompleteHighlight {
 }
 
 const LESSON_COMPLETE_KEY = 'duo_lesson_complete';
+const LESSON_STAGE_KEY = 'duo_lesson_stage';
+
+function lessonCacheKey(skillId: number) {
+  return `duo_lesson_${skillId}`;
+}
 
 function cacheDashboard(data: DashboardData, userId?: number) {
   writeCache('duo_dashboard', data, userId);
   writeCache('duo_path', data.path, userId);
   writeCache('duo_stats', data.stats, userId);
+  cacheLessonsFromPath(data.path, userId);
+}
+
+function cacheLessonsFromPath(path: Unit[], userId?: number) {
+  const uid = userId ?? getUserId();
+  for (const unit of path) {
+    for (const skill of unit.skills) {
+      if (skill.is_unlocked && skill.lesson?.exercises?.length) {
+        writeCache(lessonCacheKey(skill.id), skill.lesson, uid);
+      }
+    }
+  }
+}
+
+export function cacheSkillLesson(skillId: number, lesson: Lesson, userId?: number) {
+  writeCache(lessonCacheKey(skillId), lesson, userId ?? getUserId());
 }
 
 export function getCachedDashboard(): DashboardData | null {
@@ -172,7 +194,10 @@ export function getCachedDashboard(): DashboardData | null {
 
   const path = readStaleCache<Unit[]>('duo_path', userId);
   const stats = readStaleCache<UserStats>('duo_stats', userId);
-  if (path?.length && stats) return { path, stats };
+  if (path?.length && stats) {
+    cacheLessonsFromPath(path, userId);
+    return { path, stats };
+  }
   return null;
 }
 
@@ -314,8 +339,34 @@ export function prefetchSecondaryPages(userId?: number) {
   prefetchUnlockedLessons();
 }
 
-function lessonCacheKey(skillId: number) {
-  return `duo_lesson_${skillId}`;
+export function stageSkillLesson(skillId: number, lesson: Lesson) {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(LESSON_STAGE_KEY, JSON.stringify({ skillId, lesson }));
+    cacheSkillLesson(skillId, lesson);
+  } catch {
+    /* ignore */
+  }
+}
+
+function readStagedSkillLesson(skillId: number, consume = false): Lesson | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(LESSON_STAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { skillId: number; lesson: Lesson };
+    if (parsed.skillId !== skillId || !parsed.lesson?.exercises?.length) return null;
+    if (consume) sessionStorage.removeItem(LESSON_STAGE_KEY);
+    return parsed.lesson;
+  } catch {
+    return null;
+  }
+}
+
+export function resolveSkillLesson(skillId: number): Lesson | null {
+  const staged = readStagedSkillLesson(skillId, true);
+  if (staged) return staged;
+  return getCachedSkillLesson(skillId);
 }
 
 export function getCachedSkillLesson(skillId: number): Lesson | null {
@@ -336,18 +387,25 @@ export function prefetchSkillLesson(skillId: number) {
 export function prefetchUnlockedLessons() {
   const path = getCachedPath();
   if (!path) return;
-  let count = 0;
   for (const unit of path) {
     for (const skill of unit.skills) {
-      if (skill.is_unlocked && count < 5) {
-        prefetchSkillLesson(skill.id);
-        count += 1;
+      if (skill.is_unlocked) {
+        if (skill.lesson?.exercises?.length) {
+          cacheSkillLesson(skill.id, skill.lesson);
+        } else {
+          prefetchSkillLesson(skill.id);
+        }
       }
     }
   }
 }
 
 export async function fetchSkillLesson(skillId: number): Promise<Lesson> {
+  const cached = getCachedSkillLesson(skillId);
+  if (cached?.exercises?.length) {
+    void refreshSkillLesson(skillId).catch(() => {});
+    return cached;
+  }
   return fetchWithStaleCache(lessonCacheKey(skillId), () => refreshSkillLesson(skillId));
 }
 
@@ -361,6 +419,17 @@ export async function fetchDashboard(): Promise<DashboardData> {
   const userId = getUserId();
   const stale = readStaleCache<DashboardData>('duo_dashboard', userId);
   if (stale?.path?.length) {
+    const missingEmbeddedLessons = stale.path.some((unit) =>
+      unit.skills.some((skill) => skill.is_unlocked && !skill.lesson?.exercises?.length)
+    );
+    if (missingEmbeddedLessons) {
+      try {
+        return await refreshDashboard(userId);
+      } catch (err) {
+        void refreshDashboard(userId).catch(() => {});
+        return stale;
+      }
+    }
     void refreshDashboard(userId).catch(() => {});
     return stale;
   }
@@ -400,7 +469,6 @@ export async function submitLessonResult(
 
   if (skillId) {
     applyLessonCompletionToCache(skillId, result);
-    invalidateSkillLessonCache(skillId);
     setLessonCompleteHighlight({
       skillId,
       nextSkillId: result.next_skill_unlocked_id,

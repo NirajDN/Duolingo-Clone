@@ -151,7 +151,12 @@ def _build_path_payload(user):
         Unit.objects.prefetch_related(
             Prefetch(
                 'skills',
-                queryset=Skill.objects.prefetch_related('lessons').order_by('order'),
+                queryset=Skill.objects.prefetch_related(
+                    Prefetch(
+                        'lessons',
+                        queryset=Lesson.objects.prefetch_related('exercises').order_by('order'),
+                    )
+                ).order_by('order'),
             )
         )
         .order_by('order')

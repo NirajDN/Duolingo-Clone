@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import confetti from 'canvas-confetti';
 import { X, Heart, Check, Volume2, Clock, RefreshCw, Flame, Unlock } from 'lucide-react';
-import { fetchSkillLesson, getCachedSkillLesson, submitLessonResult, Lesson, Exercise, LessonCompletionResult } from '@/lib/api';
+import { fetchSkillLesson, resolveSkillLesson, submitLessonResult, Lesson, Exercise, LessonCompletionResult } from '@/lib/api';
 import { MascotOwl } from '@/components/MascotOwl';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
 
@@ -19,6 +19,21 @@ interface Pair {
   right: string;
 }
 
+function buildWordBank(exercise?: Exercise): string[] {
+  if (exercise?.type === 'translate') {
+    return [...((exercise.content.word_bank as string[]) || [])].sort(() => Math.random() - 0.5);
+  }
+  return [];
+}
+
+function createLessonState(skillId: number) {
+  const lesson = resolveSkillLesson(skillId);
+  return {
+    lesson,
+    wordBank: buildWordBank(lesson?.exercises[0]),
+  };
+}
+
 export default function LessonPlayerPage() {
   const params = useParams();
   const router = useRouter();
@@ -27,7 +42,8 @@ export default function LessonPlayerPage() {
   const skillId = Number(params.skillId);
   const isLegendary = searchParams.get('legendary') === 'true';
 
-  const [lesson, setLesson] = useState<Lesson | null>(() => getCachedSkillLesson(skillId));
+  const [initial] = useState(() => createLessonState(skillId));
+  const [lesson, setLesson] = useState<Lesson | null>(initial.lesson);
   const [loadError, setLoadError] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [hearts, setHearts] = useState(5);
@@ -36,7 +52,7 @@ export default function LessonPlayerPage() {
   // Exercise State Management
   const [selectedOption, setSelectedOption] = useState<Option | string | null>(null);
   const [selectedWords, setSelectedWords] = useState<string[]>([]);
-  const [wordBank, setWordBank] = useState<string[]>([]);
+  const [wordBank, setWordBank] = useState<string[]>(initial.wordBank);
   const [typedAnswer, setTypedAnswer] = useState('');
   const [matchedPairs, setMatchedPairs] = useState<string[]>([]);
   const [selectedPairLeft, setSelectedPairLeft] = useState<string | null>(null);
@@ -51,54 +67,6 @@ export default function LessonPlayerPage() {
 
   // Timer for Legendary Mode
   const [timeLeft, setTimeLeft] = useState(60);
-
-  // Load Lesson Data
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadLesson() {
-      setLoadError('');
-      try {
-        const data = await fetchSkillLesson(skillId);
-        if (cancelled) return;
-        setLesson(data);
-        if (data.exercises.length > 0) {
-          setupExercise(data.exercises[0]);
-        }
-      } catch (err) {
-        console.error('Error fetching lesson:', err);
-        if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : 'Failed to load lesson.');
-        }
-      }
-    }
-
-    const cached = getCachedSkillLesson(skillId);
-    if (cached?.exercises.length) {
-      setupExercise(cached.exercises[0]);
-    }
-
-    loadLesson();
-    return () => {
-      cancelled = true;
-    };
-  }, [skillId]);
-
-  // Legendary Mode Timer
-  useEffect(() => {
-    if (!isLegendary || isCompleted || isOutOfHearts) return;
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setIsOutOfHearts(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isLegendary, isCompleted, isOutOfHearts]);
 
   const currentExercise: Exercise | undefined = lesson?.exercises[currentIndex];
 
@@ -115,6 +83,50 @@ export default function LessonPlayerPage() {
       setWordBank(bank);
     }
   };
+
+  // Sync from network in background; only block UI when nothing is cached yet
+  useEffect(() => {
+    let cancelled = false;
+    const hadInitialLesson = Boolean(initial.lesson?.exercises.length);
+
+    async function syncLesson() {
+      if (!hadInitialLesson) setLoadError('');
+      try {
+        const data = await fetchSkillLesson(skillId);
+        if (cancelled) return;
+        setLesson(data);
+        if (!hadInitialLesson && data.exercises.length > 0) {
+          setupExercise(data.exercises[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching lesson:', err);
+        if (!hadInitialLesson && !cancelled) {
+          setLoadError(err instanceof Error ? err.message : 'Failed to load lesson.');
+        }
+      }
+    }
+
+    syncLesson();
+    return () => {
+      cancelled = true;
+    };
+  }, [skillId, initial.lesson]);
+
+  // Legendary Mode Timer
+  useEffect(() => {
+    if (!isLegendary || isCompleted || isOutOfHearts) return;
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setIsOutOfHearts(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isLegendary, isCompleted, isOutOfHearts]);
 
   const handleCheck = () => {
     if (!currentExercise) return;

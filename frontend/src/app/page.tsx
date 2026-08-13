@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   fetchDashboard,
   getCachedDashboard,
   consumeLessonCompleteHighlight,
   syncDashboardFromCache,
+  getCachedSkillLesson,
+  stageSkillLesson,
+  cacheSkillLesson,
   Unit,
   Skill,
   UserStats,
@@ -18,6 +21,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Lock, Crown, Star, Play, Zap, RefreshCw } from 'lucide-react';
 
 export default function HomePage() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const cached = getCachedDashboard();
   const [units, setUnits] = useState<Unit[]>(() => cached?.path ?? []);
@@ -68,8 +72,28 @@ export default function HomePage() {
   }, [syncFromCache]);
 
   useEffect(() => {
-    if (selectedSkill) prefetchSkillLesson(selectedSkill.id);
+    if (selectedSkill) {
+      if (selectedSkill.lesson?.exercises?.length) {
+        cacheSkillLesson(selectedSkill.id, selectedSkill.lesson);
+      } else {
+        prefetchSkillLesson(selectedSkill.id);
+      }
+    }
   }, [selectedSkill]);
+
+  const handleStartLesson = () => {
+    if (!selectedSkill) return;
+    const lesson =
+      selectedSkill.lesson ??
+      getCachedSkillLesson(selectedSkill.id);
+    if (lesson?.exercises?.length) {
+      stageSkillLesson(selectedSkill.id, lesson);
+    }
+    setSelectedSkill(null);
+    router.push(
+      `/lesson/${selectedSkill.id}${legendaryMode ? '?legendary=true' : ''}`
+    );
+  };
 
   const getHorizontalOffset = (index: number) => {
     const offsets = [0, -45, -30, 0, 30, 45, 20, 0, -25];
@@ -226,15 +250,14 @@ export default function HomePage() {
             </div>
 
             <div className="space-y-3">
-              <Link
-                href={`/lesson/${selectedSkill.id}${legendaryMode ? '?legendary=true' : ''}`}
-                onMouseEnter={() => prefetchSkillLesson(selectedSkill.id)}
-                onFocus={() => prefetchSkillLesson(selectedSkill.id)}
+              <button
+                type="button"
+                onClick={handleStartLesson}
                 className="w-full btn-duo btn-duo-green py-3 text-lg flex items-center justify-center space-x-2"
               >
                 <Zap className="w-5 h-5 fill-white" />
                 <span>START +{legendaryMode ? 20 : 10} XP</span>
-              </Link>
+              </button>
               <button
                 onClick={() => setSelectedSkill(null)}
                 className="w-full btn-duo btn-duo-gray py-2.5 text-sm"
