@@ -159,6 +159,10 @@ export default function LessonPlayerPage() {
     return () => clearInterval(timer);
   }, [isLegendary, isCompleted, isOutOfHearts]);
 
+  useEffect(() => {
+    if (isCompleted) router.prefetch('/');
+  }, [isCompleted, router]);
+
   const handleCheck = () => {
     if (!currentExercise) return;
     let isCorrect = false;
@@ -614,7 +618,7 @@ export default function LessonPlayerPage() {
 
           <div className="p-4 sm:p-6 border-t-2 border-duo-dark-border bg-duo-dark-card">
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.replace('/')}
               className="w-full max-w-lg mx-auto block btn-duo btn-duo-blue py-3.5 text-lg"
             >
               CONTINUE

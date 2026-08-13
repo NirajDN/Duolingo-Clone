@@ -42,13 +42,25 @@ export default function HomePage() {
 
   const loadData = useCallback(async () => {
     setError('');
+    const cached = syncDashboardFromCache();
+    if (cached) {
+      setUnits(cached.path);
+      setStats(cached.stats);
+      setPathLoading(false);
+    }
+
     try {
-      const data = await fetchDashboard();
+      const data = await fetchDashboard((fresh) => {
+        setUnits(fresh.path);
+        setStats(fresh.stats);
+      });
       setUnits(data.path);
       setStats(data.stats);
     } catch (err) {
       console.error('Error loading home data:', err);
-      setError((prev) => prev || (err instanceof Error ? err.message : 'Failed to load learning path.'));
+      if (!cached) {
+        setError((prev) => prev || (err instanceof Error ? err.message : 'Failed to load learning path.'));
+      }
     } finally {
       setPathLoading(false);
     }
@@ -221,7 +233,7 @@ export default function HomePage() {
                         }}
                         className="relative flex flex-col items-center justify-start group transition-transform duration-300"
                       >
-                        {(isNext || isNewlyUnlocked) && (
+                        {(isNext || (isNewlyUnlocked && skill.is_unlocked)) && (
                           <div className={`absolute -top-10 sm:-top-12 z-20 bg-white dark:bg-duo-dark-card border-2 border-duo-green px-3 py-1 rounded-xl shadow-md font-black text-xs text-duo-green flex items-center space-x-1.5 ${isNewlyUnlocked ? 'animate-bounce-in' : 'animate-bounce'}`}>
                             <span>{isNewlyUnlocked ? 'UNLOCKED!' : 'START'}</span>
                             <Play className="w-3 h-3 fill-duo-green" />

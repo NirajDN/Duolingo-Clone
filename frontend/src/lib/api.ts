@@ -215,6 +215,59 @@ function cacheDashboard(data: DashboardData, userId?: number) {
   cacheLessonsFromPath(data.path, userId);
 }
 
+/** Keep optimistic progress when the server has not caught up yet. */
+function mergeDashboardData(cached: DashboardData, server: DashboardData): DashboardData {
+  const mergedPath = server.path.map((unit, unitIdx) => ({
+    ...unit,
+    skills: unit.skills.map((skill, skillIdx) => {
+      const cachedSkill = cached.path[unitIdx]?.skills[skillIdx];
+      if (!cachedSkill || cachedSkill.id !== skill.id) return skill;
+
+      const serverBehind =
+        cachedSkill.completed_lessons > skill.completed_lessons ||
+        (cachedSkill.is_unlocked && !skill.is_unlocked) ||
+        cachedSkill.current_crown > skill.current_crown ||
+        (cachedSkill.is_completed && !skill.is_completed);
+
+      if (!serverBehind) {
+        return skill.lesson?.exercises?.length
+          ? skill
+          : { ...skill, lesson: cachedSkill.lesson ?? skill.lesson };
+      }
+
+      return {
+        ...skill,
+        is_unlocked: skill.is_unlocked || cachedSkill.is_unlocked,
+        completed_lessons: Math.max(skill.completed_lessons, cachedSkill.completed_lessons),
+        current_crown: Math.max(skill.current_crown, cachedSkill.current_crown),
+        is_completed: skill.is_completed || cachedSkill.is_completed,
+        lesson: skill.lesson?.exercises?.length ? skill.lesson : cachedSkill.lesson,
+      };
+    }),
+  }));
+
+  return {
+    path: mergedPath,
+    stats: {
+      ...server.stats,
+      xp: Math.max(server.stats.xp, cached.stats.xp),
+      streak: Math.max(server.stats.streak, cached.stats.streak),
+      daily_xp_today: Math.max(server.stats.daily_xp_today, cached.stats.daily_xp_today),
+      hearts: cached.stats.hearts ?? server.stats.hearts,
+    },
+  };
+}
+
+function prefetchMissingUnlockedLessons(path: Unit[]) {
+  for (const unit of path) {
+    for (const skill of unit.skills) {
+      if (skill.is_unlocked && !skill.lesson?.exercises?.length) {
+        prefetchSkillLesson(skill.id);
+      }
+    }
+  }
+}
+
 function cacheLessonsFromPath(path: Unit[], userId?: number) {
   const uid = userId ?? getUserId();
   for (const unit of path) {
@@ -286,6 +339,10 @@ export function applyLessonCompletionToCache(
   }));
 
   cacheDashboard({ path, stats });
+
+  if (result.next_skill_unlocked_id) {
+    prefetchSkillLesson(result.next_skill_unlocked_id);
+  }
 }
 
 function findSkillInPath(path: Unit[], skillId: number): { skill: Skill; unit: Unit } | null {
@@ -409,9 +466,12 @@ export function syncDashboardFromCache(): DashboardData | null {
 
 async function refreshDashboard(userId?: number): Promise<DashboardData> {
   const data = await authJson<DashboardData>(`${API_BASE}/dashboard/`);
-  cacheDashboard(data, userId ?? getUserId());
-  prefetchSecondaryPages(userId);
-  return data;
+  const uid = userId ?? getUserId();
+  const cached = getCachedDashboard();
+  const merged = cached ? mergeDashboardData(cached, data) : data;
+  cacheDashboard(merged, uid);
+  prefetchSecondaryPages(uid);
+  return merged;
 }
 
 async function fetchWithStaleCache<T>(
@@ -555,27 +615,23 @@ export function invalidateSkillLessonCache(skillId: number) {
   localStorage.removeItem(`${lessonCacheKey(skillId)}_${userId}`);
 }
 
-export async function fetchDashboard(): Promise<DashboardData> {
+export async function fetchDashboard(
+  onUpdated?: (data: DashboardData) => void
+): Promise<DashboardData> {
   const userId = getUserId();
   const stale = readStaleCache<DashboardData>('duo_dashboard', userId);
   if (stale?.path?.length) {
-    const missingEmbeddedLessons = stale.path.some((unit) =>
-      unit.skills.some((skill) => skill.is_unlocked && !skill.lesson?.exercises?.length)
-    );
-    if (missingEmbeddedLessons) {
-      try {
-        return await refreshDashboard(userId);
-      } catch (err) {
-        void refreshDashboard(userId).catch(() => {});
-        return stale;
-      }
-    }
-    void refreshDashboard(userId).catch(() => {});
+    prefetchMissingUnlockedLessons(stale.path);
+    void refreshDashboard(userId)
+      .then((data) => onUpdated?.(data))
+      .catch(() => {});
     return stale;
   }
 
   try {
-    return await refreshDashboard(userId);
+    const data = await refreshDashboard(userId);
+    onUpdated?.(data);
+    return data;
   } catch (err) {
     const fallback = getCachedDashboard();
     if (fallback) return fallback;
