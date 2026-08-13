@@ -101,6 +101,8 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ─── CORS Settings ──────────────────────────────────────────────────────────

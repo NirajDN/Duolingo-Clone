@@ -218,6 +218,89 @@ erDiagram
 
 ---
 
+## Google OAuth Setup
+
+Google sign-in uses **Google Identity Services** on the frontend and verifies the ID token on the backend.
+
+### 1. Create Google OAuth credentials
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Create a project (or select an existing one)
+3. **APIs & Services → OAuth consent screen** → configure (External is fine for testing)
+4. **Credentials → Create Credentials → OAuth client ID**
+5. Application type: **Web application**
+6. **Authorized JavaScript origins:**
+   - `http://localhost:3000`
+   - `https://duolingo-clone-liart.vercel.app`
+7. Copy the **Client ID** (ends with `.apps.googleusercontent.com`)
+
+### 2. Set environment variables
+
+**Frontend** (`frontend/.env.local` and Vercel):
+
+```env
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+```
+
+**Backend** (`backend/.env` and Render):
+
+```env
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+```
+
+Use the **same Client ID** on both frontend and backend.
+
+### 3. Redeploy
+
+- Push to GitHub → Vercel redeploys frontend
+- Render redeploys backend after adding `GOOGLE_CLIENT_ID` in Environment
+
+**API:** `POST /api/auth/google/` with body `{ "id_token": "<google credential>" }`
+
+---
+
+## Django Admin (Database UI)
+
+Browse and edit SQLite data in a web UI at **`/admin/`**.
+
+### Local setup
+
+```bash
+cd backend
+# Windows PowerShell:
+.\venv\Scripts\Activate.ps1
+# macOS/Linux:
+# source venv/bin/activate
+
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver 0.0.0.0:8000
+```
+
+Open [http://localhost:8000/admin/](http://localhost:8000/admin/) and log in with your superuser account.
+
+**Useful sections:**
+- **Users** — new signups (`date_joined`, `last_login`)
+- **User stats** — XP, streak, hearts per learner
+- **User progress** — skill unlock/completion state
+- **User lesson attempts** — completed lessons
+- **Languages / Units / Skills / Lessons / Exercises** — course content
+
+### Production (Render)
+
+1. Render Dashboard → your backend service → **Shell**
+2. Run: `python manage.py createsuperuser`
+3. Open: `https://duolingo-clone-6092.onrender.com/admin/`
+
+> **Note:** Render free tier may sleep; first load can take ~15 seconds.
+
+### Alternative: DB Browser for SQLite
+
+For raw file access locally, open `backend/db.sqlite3` in [DB Browser for SQLite](https://sqlitebrowser.org/).  
+Live Render data is **not** in your local file — use Django Admin on Render for production users.
+
+---
+
 ## Deployment Configuration
 
 - Backend Deployment: `backend/render.yaml` (compatible with Render / Railway)

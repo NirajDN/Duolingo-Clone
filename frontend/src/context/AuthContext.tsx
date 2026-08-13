@@ -17,6 +17,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -70,6 +71,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, pathname, router]);
 
+  const persistSession = useCallback(
+    (data: { access: string; refresh: string; user: AuthUser }) => {
+      localStorage.setItem('duo_access', data.access);
+      localStorage.setItem('duo_refresh', data.refresh);
+      localStorage.setItem('duo_user', JSON.stringify(data.user));
+      setToken(data.access);
+      setUser(data.user);
+    },
+    []
+  );
+
   const login = useCallback(async (username: string, password: string) => {
     const data = await authRequest<{
       access: string;
@@ -81,13 +93,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ username, password }),
     });
 
-    localStorage.setItem('duo_access', data.access);
-    localStorage.setItem('duo_refresh', data.refresh);
-    localStorage.setItem('duo_user', JSON.stringify(data.user));
-    setToken(data.access);
-    setUser(data.user);
+    persistSession(data);
     router.replace('/');
-  }, [router]);
+  }, [router, persistSession]);
 
   const register = useCallback(async (username: string, email: string, password: string) => {
     const data = await authRequest<{
@@ -100,13 +108,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ username, email, password }),
     });
 
-    localStorage.setItem('duo_access', data.access);
-    localStorage.setItem('duo_refresh', data.refresh);
-    localStorage.setItem('duo_user', JSON.stringify(data.user));
-    setToken(data.access);
-    setUser(data.user);
+    persistSession(data);
     router.replace('/');
-  }, [router]);
+  }, [router, persistSession]);
+
+  const loginWithGoogle = useCallback(async (idToken: string) => {
+    const data = await authRequest<{
+      access: string;
+      refresh: string;
+      user: AuthUser;
+    }>(`${API_BASE}/auth/google/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: idToken }),
+    });
+
+    persistSession(data);
+    router.replace('/');
+  }, [router, persistSession]);
 
   const logout = useCallback(async () => {
     const refresh = localStorage.getItem('duo_refresh');
@@ -130,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

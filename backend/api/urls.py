@@ -6,6 +6,7 @@ urlpatterns = [
     # ── Auth ──────────────────────────────────────────────────
     path('auth/register/', views.register_user, name='register'),
     path('auth/login/', views.login_user, name='login'),
+    path('auth/google/', views.google_auth, name='google_auth'),
     path('auth/logout/', views.logout_user, name='logout'),
     path('auth/me/', views.get_me, name='me'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

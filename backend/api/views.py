@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.conf import settings
 
 from .models import (
     Language, Unit, Skill, Lesson, Exercise,
@@ -28,6 +29,27 @@ def get_tokens_for_user(user):
         'refresh': str(refresh),
         'access': str(refresh.access_token),
     }
+
+
+def auth_user_response(user):
+    """Standard auth payload returned after login/register/google."""
+    return {
+        'user': {'id': user.id, 'username': user.username, 'email': user.email},
+        **get_tokens_for_user(user),
+    }
+
+
+def unique_username_from_email(email: str) -> str:
+    """Derive a unique Django username from a Google email address."""
+    base = email.split('@')[0]
+    base = ''.join(ch for ch in base if ch.isalnum() or ch in '._-')[:30] or 'user'
+    username = base
+    counter = 1
+    while User.objects.filter(username=username).exists():
+        suffix = str(counter)
+        username = f"{base[: max(1, 30 - len(suffix))]}{suffix}"
+        counter += 1
+    return username
 
 
 # ─── AUTH ENDPOINTS ──────────────────────────────────────────────────────────
@@ -61,6 +83,58 @@ def register_user(request):
         'user': {'id': user.id, 'username': user.username, 'email': user.email},
         **tokens,
     }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_auth(request):
+    """POST /api/auth/google/ — Sign in or register via Google ID token."""
+    id_token = request.data.get('id_token', '').strip()
+    if not id_token:
+        return Response({'detail': 'Google ID token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '')
+    if not client_id:
+        return Response(
+            {'detail': 'Google OAuth is not configured on the server.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    try:
+        from google.oauth2 import id_token as google_id_token
+        from google.auth.transport import requests as google_requests
+
+        idinfo = google_id_token.verify_oauth2_token(
+            id_token,
+            google_requests.Request(),
+            client_id,
+        )
+    except ValueError:
+        return Response({'detail': 'Invalid or expired Google token.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    if idinfo.get('iss') not in ('accounts.google.com', 'https://accounts.google.com'):
+        return Response({'detail': 'Invalid Google token issuer.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    email = (idinfo.get('email') or '').strip().lower()
+    if not email:
+        return Response({'detail': 'Google account has no email address.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if idinfo.get('email_verified') is False:
+        return Response({'detail': 'Google email is not verified.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = User.objects.filter(email__iexact=email).first()
+    if user is None:
+        user = User.objects.create_user(
+            username=unique_username_from_email(email),
+            email=email,
+        )
+        user.set_unusable_password()
+        user.save()
+        UserStats.objects.get_or_create(user=user)
+    elif not user.is_active:
+        return Response({'detail': 'Account is disabled.'}, status=status.HTTP_403_FORBIDDEN)
+
+    return Response(auth_user_response(user))
 
 
 @api_view(['POST'])
