@@ -66,8 +66,8 @@ export default function LeaderboardPage() {
         <LeaderboardSkeleton />
       ) : (
         <div className="max-w-3xl mx-auto w-full px-3 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
-          <div className="bg-gradient-to-r from-amber-400 to-yellow-500 rounded-3xl p-4 sm:p-6 text-white text-center shadow-lg relative overflow-hidden flex flex-col items-center">
-            <Trophy className="w-12 h-12 sm:w-16 sm:h-16 fill-white text-yellow-600 mb-2 animate-bounce" />
+          <div className="bg-gradient-to-b from-amber-400 to-amber-500 rounded-2xl p-5 sm:p-6 text-white text-center shadow-lg relative overflow-hidden flex flex-col items-center border-b-[5px] border-amber-600">
+            <Shield className="w-14 h-14 sm:w-16 sm:h-16 fill-white text-amber-200 mb-2 drop-shadow" />
             <h1 className="text-2xl sm:text-3xl font-black mb-1">{leagueName} League</h1>
             <p className="font-bold text-xs sm:text-sm text-yellow-100 flex items-center space-x-1">
               <Clock className="w-4 h-4 inline shrink-0" />

@@ -91,7 +91,156 @@ body {
 .dark .btn-duo-gray {
   background-color: #1A2B32;
   border-color: #37464F;
+  color: #AFB6BC;
+}
+
+.btn-duo-disabled {
+  background-color: #E5E5E5;
+  border-color: #CECECE;
+  color: #AFAFAF;
+  border-bottom-width: 4px;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.dark .btn-duo-disabled {
+  background-color: #37464F;
+  border-color: #2B3B42;
   color: #52656D;
+}
+
+.btn-duo-disabled:active {
+  transform: none;
+  border-bottom-width: 4px;
+}
+
+/* Lesson option cards (Duolingo dark) */
+.duo-option-card {
+  background-color: #1A2B32;
+  border: 2px solid #37464F;
+  border-bottom-width: 4px;
+  border-radius: 16px;
+  transition: all 0.15s ease;
+}
+
+.duo-option-card:hover:not(:disabled) {
+  border-color: #52656D;
+}
+
+.duo-option-card-selected {
+  background-color: #1CB0F6;
+  border-color: #1899D6;
+  color: white;
+}
+
+.duo-word-chip {
+  background-color: #1A2B32;
+  border: 2px solid #37464F;
+  border-bottom-width: 4px;
+  border-radius: 14px;
+  padding: 0.5rem 1rem;
+  font-weight: 800;
+  color: #F7F7F7;
+  transition: all 0.1s ease;
+}
+
+.duo-word-chip:active {
+  border-bottom-width: 2px;
+  transform: translateY(2px);
+}
+
+.duo-speech-bubble {
+  position: relative;
+  background: #1A2B32;
+  border: 2px solid #37464F;
+  border-radius: 16px;
+  padding: 1rem 1.25rem;
+}
+
+.duo-speech-bubble::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-width: 10px 12px 10px 0;
+  border-style: solid;
+  border-color: transparent #37464F transparent transparent;
+}
+
+.duo-lesson-footer-correct {
+  background-color: #D7FFB8;
+  border-color: #58CC02;
+  color: #58A700;
+}
+
+.duo-lesson-footer-incorrect {
+  background-color: #FFDFE0;
+  border-color: #FF4B4B;
+  color: #EA2B2B;
+}
+
+.duo-badge-new {
+  background-color: #CE82FF;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+}
+
+.duo-path-line {
+  width: 4px;
+  height: 2.5rem;
+  background: #37464F;
+  border-radius: 9999px;
+}
+
+.duo-unit-banner {
+  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%);
+  border: 2px solid #37464F;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.duo-stat-pill {
+  border-radius: 16px;
+  border: 2px solid;
+  border-bottom-width: 4px;
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+}
+
+.duo-stat-pill-xp {
+  background: #FFF4CC;
+  border-color: #FFC800;
+  color: #FFC800;
+}
+
+.duo-stat-pill-accuracy {
+  background: #D7FFB8;
+  border-color: #58CC02;
+  color: #58CC02;
+}
+
+.duo-stat-pill-streak {
+  background: #FFE0CC;
+  border-color: #FF9600;
+  color: #FF9600;
+}
+
+.dark .duo-stat-pill-xp {
+  background: rgba(255, 200, 0, 0.15);
+}
+
+.dark .duo-stat-pill-accuracy {
+  background: rgba(88, 204, 2, 0.15);
+}
+
+.dark .duo-stat-pill-streak {
+  background: rgba(255, 150, 0, 0.15);
 }
 
 /* Heart-break animation */

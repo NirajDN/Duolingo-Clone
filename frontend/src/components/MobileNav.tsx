@@ -32,9 +32,9 @@ export function MobileNav() {
                 if (item.href === '/leaderboard') prefetchLeaderboard();
                 if (item.href === '/profile') prefetchProfile();
               }}
-              className={`flex flex-col items-center justify-center py-2.5 px-1 transition-colors ${
+              className={`flex flex-col items-center justify-center py-2.5 px-1 transition-colors rounded-xl mx-1 ${
                 isActive
-                  ? 'text-duo-blue'
+                  ? 'text-duo-blue bg-blue-50 dark:bg-blue-950/30'
                   : 'text-gray-400 dark:text-gray-500'
               }`}
             >

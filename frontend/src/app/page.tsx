@@ -147,31 +147,35 @@ export default function HomePage() {
 
           <div className="w-full space-y-10 sm:space-y-12 flex flex-col items-center">
             {units.map((unit) => (
-              <div key={unit.id} className="w-full flex flex-col items-center">
                 <div
-                  style={{ backgroundColor: unit.hex_color }}
-                  className="w-full max-w-lg rounded-3xl p-4 sm:p-6 text-white shadow-lg mb-8 sm:mb-10 text-center relative overflow-hidden"
+                  key={unit.id}
+                  className="w-full flex flex-col items-center"
                 >
-                  <div className="relative z-10">
-                    <span className="inline-block px-3 py-1 bg-black/20 rounded-full font-black text-xs uppercase tracking-widest mb-2">
-                      Unit {unit.order}
-                    </span>
-                    <h2 className="text-xl sm:text-2xl font-black mb-1">{unit.title}</h2>
-                    <p className="font-bold text-sm text-white/90">{unit.description}</p>
+                  <div className="duo-unit-banner w-full max-w-lg mb-6 sm:mb-8 shadow-lg">
+                    <div
+                      style={{ backgroundColor: unit.hex_color }}
+                      className="px-4 sm:px-6 py-4 sm:py-5 text-white text-center"
+                    >
+                      <span className="inline-block px-3 py-1 bg-black/25 rounded-full font-black text-[10px] sm:text-xs uppercase tracking-widest mb-2">
+                        Unit {unit.order}
+                      </span>
+                      <h2 className="text-lg sm:text-xl font-black mb-1">{unit.title}</h2>
+                      <p className="font-bold text-xs sm:text-sm text-white/90">{unit.description}</p>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex flex-col items-center space-y-6 sm:space-y-7 relative py-4">
+                <div className="flex flex-col items-center relative py-2">
                   {unit.skills.map((skill, sIdx) => {
                     const offset = getHorizontalOffset(sIdx);
                     const isNext = skill.is_unlocked && !skill.is_completed && skill.completed_lessons === 0;
                     const isNewlyUnlocked = highlightSkillId === skill.id;
 
                     return (
+                      <React.Fragment key={skill.id}>
+                        {sIdx > 0 && <div className="duo-path-line my-1" aria-hidden />}
                       <div
-                        key={skill.id}
                         style={{ transform: `translateX(${offset}px)` }}
-                        className="relative flex flex-col items-center group transition-transform duration-300"
+                        className="relative flex flex-col items-center group transition-transform duration-300 my-2"
                       >
                         {(isNext || isNewlyUnlocked) && (
                           <div className={`absolute -top-10 sm:-top-12 z-20 bg-white dark:bg-duo-dark-card border-2 border-duo-green px-3 py-1 rounded-xl shadow-md font-black text-xs text-duo-green flex items-center space-x-1.5 ${isNewlyUnlocked ? 'animate-bounce-in' : 'animate-bounce'}`}>
@@ -185,12 +189,12 @@ export default function HomePage() {
                             if (skill.is_unlocked) setSelectedSkill(skill);
                           }}
                           disabled={!skill.is_unlocked}
-                          className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center relative border-b-4 transition-all duration-500 ${
+                          className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center relative border-b-[5px] transition-all duration-500 ${
                             skill.is_completed
                               ? 'bg-duo-gold border-yellow-600 text-white shadow-lg hover:scale-105'
                               : skill.is_unlocked
                               ? `bg-duo-green border-green-700 text-white shadow-lg hover:scale-105 ${isNewlyUnlocked ? 'animate-unlock-pop' : 'animate-pulse-glow'}`
-                              : 'bg-gray-200 dark:bg-duo-dark-card border-gray-400 dark:border-duo-dark-border text-gray-400 cursor-not-allowed'
+                              : 'bg-[#37464F] border-[#2B3B42] text-[#52656D] cursor-not-allowed opacity-70'
                           }`}
                         >
                           {skill.is_completed ? (
@@ -212,6 +216,7 @@ export default function HomePage() {
                           {skill.title}
                         </span>
                       </div>
+                      </React.Fragment>
                     );
                   })}
                 </div>

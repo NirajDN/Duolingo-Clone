@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import confetti from 'canvas-confetti';
-import { X, Heart, Check, Volume2, Clock, RefreshCw, Flame, Unlock } from 'lucide-react';
+import { X, Heart, Check, Volume2, Clock, RefreshCw, Flame, Unlock, Zap } from 'lucide-react';
 import { fetchSkillLesson, resolveSkillLesson, submitLessonResult, Lesson, Exercise, LessonCompletionResult } from '@/lib/api';
 import { MascotOwl } from '@/components/MascotOwl';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
@@ -32,6 +32,38 @@ function createLessonState(skillId: number) {
     lesson,
     wordBank: buildWordBank(lesson?.exercises[0]),
   };
+}
+
+const OPTION_EMOJI: Record<string, string> = {
+  boy: '👦',
+  girl: '👧',
+  man: '👨',
+  woman: '👩',
+  water: '💧',
+  apple: '🍎',
+};
+
+function exerciseCanCheck(
+  exercise: Exercise,
+  selectedOption: Option | string | null,
+  selectedWords: string[],
+  typedAnswer: string,
+  matchedPairs: string[],
+): boolean {
+  switch (exercise.type) {
+    case 'multiple_choice':
+      return selectedOption !== null;
+    case 'translate':
+      return selectedWords.length > 0;
+    case 'match_pairs':
+      return matchedPairs.length === ((exercise.content.pairs as Pair[]) || []).length;
+    case 'fill_blank':
+      return selectedOption !== null;
+    case 'type_answer':
+      return typedAnswer.trim().length > 0;
+    default:
+      return false;
+  }
 }
 
 export default function LessonPlayerPage() {
@@ -200,38 +232,50 @@ export default function LessonPlayerPage() {
 
   if (!lesson || !currentExercise) {
     return (
-      <div className="min-h-screen flex flex-col bg-white dark:bg-duo-dark">
-        <header className="max-w-4xl mx-auto w-full px-4 pt-6 pb-4">
-          <div className="bg-gray-200 dark:bg-duo-dark-border h-4 rounded-full overflow-hidden animate-pulse" />
+      <div className="min-h-screen flex flex-col bg-duo-dark">
+        <header className="max-w-4xl mx-auto w-full px-4 pt-5 pb-3">
+          <div className="bg-duo-dark-border h-3 rounded-full overflow-hidden animate-pulse" />
         </header>
         <main className="max-w-2xl mx-auto w-full flex-1 px-4 py-8 space-y-6 animate-pulse">
-          <div className="h-8 bg-gray-200 dark:bg-duo-dark-border rounded-xl w-3/4" />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="h-24 bg-gray-200 dark:bg-duo-dark-border rounded-2xl" />
-            <div className="h-24 bg-gray-200 dark:bg-duo-dark-border rounded-2xl" />
-            <div className="h-24 bg-gray-200 dark:bg-duo-dark-border rounded-2xl" />
+          <div className="h-6 bg-duo-dark-border rounded-lg w-1/4" />
+          <div className="h-8 bg-duo-dark-border rounded-xl w-3/4" />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="h-28 bg-duo-dark-card border-2 border-duo-dark-border rounded-2xl" />
+            <div className="h-28 bg-duo-dark-card border-2 border-duo-dark-border rounded-2xl" />
+            <div className="h-28 bg-duo-dark-card border-2 border-duo-dark-border rounded-2xl" />
+            <div className="h-28 bg-duo-dark-card border-2 border-duo-dark-border rounded-2xl" />
           </div>
         </main>
-        <footer className="p-6 border-t-2 border-duo-gray dark:border-duo-dark-border">
-          <p className="text-center font-extrabold text-duo-green">Preparing lesson...</p>
+        <footer className="p-5 border-t-2 border-duo-dark-border bg-duo-dark-card">
+          <p className="text-center font-extrabold text-duo-green text-sm">Preparing lesson...</p>
         </footer>
       </div>
     );
   }
 
-  const progressPercent = ((currentIndex) / lesson.exercises.length) * 100;
+  const progressPercent = ((currentIndex + 1) / lesson.exercises.length) * 100;
+  const canCheck = exerciseCanCheck(
+    currentExercise,
+    selectedOption,
+    selectedWords,
+    typedAnswer,
+    matchedPairs,
+  );
+  const accuracyPercent = Math.round(
+    ((lesson.exercises.length - heartsLost) / lesson.exercises.length) * 100
+  );
 
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-white dark:bg-duo-dark text-gray-800 dark:text-gray-100">
-      <header className="max-w-4xl mx-auto w-full px-4 pt-6 pb-4 flex items-center space-x-4">
+    <div className="min-h-screen flex flex-col justify-between bg-duo-dark text-gray-100">
+      <header className="max-w-4xl mx-auto w-full px-4 pt-5 pb-3 flex items-center gap-3">
         <button
           onClick={() => setShowQuitModal(true)}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors"
+          className="text-duo-dark-border hover:text-white transition-colors p-1"
         >
           <X className="w-7 h-7 stroke-[3]" />
         </button>
 
-        <div className="flex-1 bg-gray-200 dark:bg-duo-dark-border h-4 rounded-full overflow-hidden">
+        <div className="flex-1 bg-duo-dark-border h-3 rounded-full overflow-hidden">
           <div
             style={{ width: `${progressPercent}%` }}
             className="bg-duo-green h-full transition-all duration-300 rounded-full"
@@ -239,38 +283,44 @@ export default function LessonPlayerPage() {
         </div>
 
         {isLegendary ? (
-          <div className="flex items-center space-x-1.5 text-amber-500 font-black">
-            <Clock className="w-6 h-6 animate-pulse" />
+          <div className="flex items-center gap-1.5 text-duo-gold font-black text-sm">
+            <Clock className="w-5 h-5" />
             <span>{timeLeft}s</span>
           </div>
         ) : (
-          <div className="flex items-center space-x-1.5 text-duo-red font-black">
-            <Heart className="w-6 h-6 fill-duo-red stroke-red-600 animate-heart-break" />
+          <div className="flex items-center gap-1 text-duo-red font-black">
+            <Heart className="w-6 h-6 fill-duo-red stroke-red-600" />
             <span>{hearts}</span>
           </div>
         )}
       </header>
 
-      <main className="max-w-2xl mx-auto w-full flex-1 px-4 py-8 flex flex-col justify-center">
-        <h1 className="text-2xl sm:text-3xl font-black mb-8 text-gray-800 dark:text-white">
+      <main className="max-w-2xl mx-auto w-full flex-1 px-4 py-6 flex flex-col">
+        {currentExercise.type === 'multiple_choice' && (
+          <span className="duo-badge-new w-fit mb-3">New word</span>
+        )}
+
+        <h1 className="text-xl sm:text-2xl font-black mb-6 text-white leading-snug">
           {currentExercise.prompt}
         </h1>
 
         {/* 1. MULTIPLE CHOICE */}
         {currentExercise.type === 'multiple_choice' && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 flex-1 content-start">
             {((currentExercise.content.options as Option[]) || []).map((opt: Option, idx: number) => {
               const isSelected = (selectedOption as Option)?.text === opt.text;
+              const emoji = opt.image ? OPTION_EMOJI[opt.image] : '📝';
               return (
                 <button
                   key={idx}
                   onClick={() => setSelectedOption(opt)}
                   disabled={status !== 'idle'}
-                  className={`btn-duo p-6 flex flex-col items-center justify-center space-y-3 text-lg lowercase tracking-wide ${
-                    isSelected ? 'btn-duo-blue' : 'btn-duo-gray'
+                  className={`duo-option-card p-4 sm:p-5 flex flex-col items-center justify-center gap-2 min-h-[120px] ${
+                    isSelected ? 'duo-option-card-selected' : ''
                   }`}
                 >
-                  <span className="font-extrabold text-xl">{opt.text}</span>
+                  <span className="text-4xl">{emoji}</span>
+                  <span className="font-extrabold text-sm sm:text-base text-center">{opt.text}</span>
                 </button>
               );
             })}
@@ -279,15 +329,20 @@ export default function LessonPlayerPage() {
 
         {/* 2. TRANSLATE / WORD BANK */}
         {currentExercise.type === 'translate' && (
-          <div className="space-y-8">
-            <div className="p-4 bg-gray-50 dark:bg-duo-dark-card border-2 border-duo-gray dark:border-duo-dark-border rounded-2xl flex items-center space-x-3">
-              <Volume2 className="w-6 h-6 text-duo-blue cursor-pointer" />
-              <span className="text-xl font-bold text-gray-800 dark:text-white">
-                &quot;{currentExercise.content.source_text as string}&quot;
-              </span>
+          <div className="space-y-6 flex-1">
+            <div className="flex items-start gap-3">
+              <MascotOwl emotion="happy" width={72} height={72} className="shrink-0" />
+              <div className="duo-speech-bubble flex-1 flex items-center gap-2">
+                <Volume2 className="w-5 h-5 text-duo-blue shrink-0 cursor-pointer" />
+                <span className="text-lg font-bold text-white">
+                  {currentExercise.content.source_text as string}
+                </span>
+              </div>
             </div>
 
-            <div className="min-h-[70px] border-b-2 border-duo-gray dark:border-duo-dark-border p-2 flex flex-wrap gap-2.5 items-center">
+            <p className="text-sm font-bold text-gray-400 uppercase tracking-wide">Tap the answer</p>
+
+            <div className="min-h-[56px] border-b-2 border-duo-dark-border pb-3 flex flex-wrap gap-2 items-center">
               {selectedWords.map((word, idx) => (
                 <button
                   key={idx}
@@ -296,14 +351,14 @@ export default function LessonPlayerPage() {
                     setSelectedWords(selectedWords.filter((_, i) => i !== idx));
                     setWordBank([...wordBank, word]);
                   }}
-                  className="btn-duo btn-duo-gray px-4 py-2 text-base font-extrabold"
+                  className="duo-word-chip"
                 >
                   {word}
                 </button>
               ))}
             </div>
 
-            <div className="flex flex-wrap gap-2.5 justify-center">
+            <div className="flex flex-wrap gap-2 justify-center">
               {wordBank.map((word, idx) => (
                 <button
                   key={idx}
@@ -312,7 +367,7 @@ export default function LessonPlayerPage() {
                     setSelectedWords([...selectedWords, word]);
                     setWordBank(wordBank.filter((_, i) => i !== idx));
                   }}
-                  className="btn-duo btn-duo-gray px-4 py-2 text-base font-extrabold"
+                  className="duo-word-chip"
                 >
                   {word}
                 </button>
@@ -416,32 +471,30 @@ export default function LessonPlayerPage() {
       </main>
 
       <footer
-        className={`p-6 border-t-2 transition-all ${
+        className={`p-4 sm:p-5 border-t-2 transition-all ${
           status === 'correct'
-            ? 'bg-green-100 dark:bg-green-950/80 border-duo-green'
+            ? 'duo-lesson-footer-correct'
             : status === 'incorrect'
-            ? 'bg-red-100 dark:bg-red-950/80 border-duo-red'
-            : 'bg-white dark:bg-duo-dark border-duo-gray dark:border-duo-dark-border'
+            ? 'duo-lesson-footer-incorrect'
+            : 'bg-duo-dark-card border-duo-dark-border'
         }`}
       >
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
+        <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
           {status === 'correct' ? (
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 rounded-full bg-duo-green flex items-center justify-center">
-                <Check className="w-8 h-8 text-white stroke-[4]" />
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-duo-green flex items-center justify-center shrink-0">
+                <Check className="w-7 h-7 text-white stroke-[4]" />
               </div>
-              <div>
-                <h3 className="text-xl font-black text-duo-green">Nice job!</h3>
-              </div>
+              <h3 className="text-xl font-black text-[#58A700]">Correct!</h3>
             </div>
           ) : status === 'incorrect' ? (
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 rounded-full bg-duo-red flex items-center justify-center">
-                <X className="w-8 h-8 text-white stroke-[4]" />
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-full bg-duo-red flex items-center justify-center shrink-0">
+                <X className="w-7 h-7 text-white stroke-[4]" />
               </div>
-              <div>
-                <h3 className="text-xl font-black text-duo-red">Correct answer:</h3>
-                <p className="font-bold text-gray-700 dark:text-gray-200">
+              <div className="min-w-0">
+                <h3 className="text-lg font-black text-duo-red">Correct answer:</h3>
+                <p className="font-bold text-gray-800 truncate">
                   {currentExercise.type === 'multiple_choice'
                     ? ((currentExercise.content.options as Option[]) || []).find((o: Option) => o.correct)?.text
                     : currentExercise.type === 'translate'
@@ -459,14 +512,17 @@ export default function LessonPlayerPage() {
           {status === 'idle' ? (
             <button
               onClick={handleCheck}
-              className="btn-duo btn-duo-green px-10 py-3 text-lg"
+              disabled={!canCheck}
+              className={`btn-duo px-8 sm:px-12 py-3 text-base sm:text-lg w-full sm:w-auto max-w-xs ${
+                canCheck ? 'btn-duo-green' : 'btn-duo-disabled'
+              }`}
             >
               CHECK
             </button>
           ) : (
             <button
               onClick={handleContinue}
-              className={`btn-duo px-10 py-3 text-lg ${
+              className={`btn-duo px-8 sm:px-12 py-3 text-base sm:text-lg w-full sm:w-auto max-w-xs ${
                 status === 'correct' ? 'btn-duo-green' : 'btn-duo-red'
               }`}
             >
@@ -506,52 +562,58 @@ export default function LessonPlayerPage() {
       )}
 
       {isCompleted && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-duo-dark-card border-4 border-duo-gold rounded-3xl max-w-md w-full p-6 text-center shadow-2xl space-y-5 animate-scale-in">
-            <MascotOwl emotion="celebrating" width={130} height={130} className="mx-auto" />
-            <h2 className="text-3xl font-black text-duo-gold">Lesson Complete!</h2>
+        <div className="fixed inset-0 z-50 flex flex-col bg-duo-dark animate-fade-in overflow-y-auto">
+          <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 text-center space-y-6">
+            <MascotOwl emotion="celebrating" width={140} height={140} />
+            <div>
+              <h2 className="text-3xl sm:text-4xl font-black text-duo-gold mb-2">
+                {accuracyPercent === 100 ? 'Perfect lesson!' : 'Lesson complete!'}
+              </h2>
+              <p className="font-bold text-gray-400 text-sm sm:text-base">
+                {accuracyPercent === 100
+                  ? 'You made no mistakes in this lesson'
+                  : 'Great work — keep your streak going!'}
+              </p>
+            </div>
 
-            {completionResult?.streak_increased && (
-              <div className="flex items-center justify-center gap-2 py-2 px-4 bg-orange-50 dark:bg-orange-950/40 border-2 border-orange-400 rounded-2xl animate-bounce-in">
-                <Flame className="w-6 h-6 text-orange-500 fill-orange-500" />
-                <span className="font-black text-orange-600 dark:text-orange-300">
-                  <AnimatedCounter value={completionResult.streak} /> day streak!
-                </span>
-              </div>
-            )}
-
-            {completionResult?.next_skill_unlocked_id && (
-              <div className="flex items-center justify-center gap-2 py-2 px-4 bg-green-50 dark:bg-green-950/40 border-2 border-duo-green rounded-2xl animate-bounce-in">
-                <Unlock className="w-5 h-5 text-duo-green" />
-                <span className="font-black text-duo-green text-sm">Next lesson unlocked!</span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border-2 border-duo-gold rounded-2xl">
-                <span className="block text-xs font-black text-amber-700 uppercase">XP Earned</span>
-                <span className="text-2xl font-black text-duo-gold">
+            <div className="grid grid-cols-3 gap-3 w-full max-w-md">
+              <div className="duo-stat-pill duo-stat-pill-xp">
+                <span className="block text-[10px] font-black uppercase tracking-wide opacity-80">Total XP</span>
+                <span className="text-xl sm:text-2xl font-black flex items-center justify-center gap-1">
+                  <Zap className="w-5 h-5 fill-current" />
                   {completionResult ? (
-                    <>+<AnimatedCounter value={completionResult.xp_gained} /></>
-                  ) : submittingResult ? (
-                    '...'
+                    <AnimatedCounter value={completionResult.xp_gained} />
                   ) : (
-                    `+${isLegendary ? 20 : lesson.xp_reward || 10}`
+                    lesson.xp_reward || 10
                   )}
                 </span>
               </div>
-              <div className="p-4 bg-green-50 dark:bg-green-950/40 border-2 border-duo-green rounded-2xl">
-                <span className="block text-xs font-black text-duo-green uppercase">Accuracy</span>
-                <span className="text-2xl font-black text-duo-green">
-                  {Math.round(((lesson.exercises.length - heartsLost) / lesson.exercises.length) * 100)}%
+              <div className="duo-stat-pill duo-stat-pill-accuracy">
+                <span className="block text-[10px] font-black uppercase tracking-wide opacity-80">Accuracy</span>
+                <span className="text-xl sm:text-2xl font-black">{accuracyPercent}%</span>
+              </div>
+              <div className="duo-stat-pill duo-stat-pill-streak">
+                <span className="block text-[10px] font-black uppercase tracking-wide opacity-80">Streak</span>
+                <span className="text-xl sm:text-2xl font-black flex items-center justify-center gap-1">
+                  <Flame className="w-5 h-5 fill-current" />
+                  {completionResult?.streak ?? '—'}
                 </span>
               </div>
             </div>
 
+            {completionResult?.next_skill_unlocked_id && (
+              <div className="flex items-center justify-center gap-2 py-2 px-4 bg-duo-dark-card border-2 border-duo-green rounded-2xl">
+                <Unlock className="w-5 h-5 text-duo-green" />
+                <span className="font-black text-duo-green text-sm">Next lesson unlocked!</span>
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 sm:p-6 border-t-2 border-duo-dark-border bg-duo-dark-card">
             <button
               onClick={() => router.push('/')}
               disabled={submittingResult}
-              className="w-full btn-duo btn-duo-green py-3 text-xl disabled:opacity-70"
+              className="w-full max-w-lg mx-auto block btn-duo btn-duo-blue py-3.5 text-lg disabled:opacity-70"
             >
               {submittingResult ? 'Saving progress...' : 'CONTINUE'}
             </button>
