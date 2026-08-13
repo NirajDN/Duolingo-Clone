@@ -4,11 +4,10 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { MascotOwl } from '@/components/MascotOwl';
-import { GoogleSignIn } from '@/components/GoogleSignIn';
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
-  const { login, loginWithGoogle } = useAuth();
+  const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -123,31 +122,6 @@ export default function LoginPage() {
                 )}
               </button>
             </form>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-6">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs font-black text-gray-400 uppercase tracking-widest">or</span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
-
-            {/* Google OAuth */}
-            <GoogleSignIn
-              buttonId="login-google"
-              disabled={loading}
-              onSuccess={async (credential) => {
-                setError('');
-                setLoading(true);
-                try {
-                  await loginWithGoogle(credential);
-                } catch (err: unknown) {
-                  setError(err instanceof Error ? err.message : 'Google sign-in failed.');
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              onError={setError}
-            />
 
             {/* Register link */}
             <p className="text-center mt-6 text-sm font-bold text-gray-500">
