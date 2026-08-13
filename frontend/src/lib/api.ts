@@ -121,6 +121,16 @@ export interface LeaderboardEntry {
   rank: number;
 }
 
+/** Re-sort by weekly XP and assign ranks from position (fixes stale cached ranks). */
+export function normalizeLeaderboardEntries(entries: LeaderboardEntry[]): LeaderboardEntry[] {
+  const sorted = [...entries].sort((a, b) => b.weekly_xp - a.weekly_xp || a.id - b.id);
+  return sorted.map((entry, idx) => ({
+    ...entry,
+    rank: idx + 1,
+    league: 'Gold',
+  }));
+}
+
 export interface Achievement {
   id: number;
   title: string;
@@ -312,8 +322,9 @@ async function fetchWithStaleCache<T>(
 
 async function refreshLeaderboard(userId?: number): Promise<LeaderboardEntry[]> {
   const data = await authJson<LeaderboardEntry[]>(`${API_BASE}/leaderboard/`);
-  writeCache('duo_leaderboard', data, userId ?? getUserId());
-  return data;
+  const normalized = normalizeLeaderboardEntries(data);
+  writeCache('duo_leaderboard', normalized, userId ?? getUserId());
+  return normalized;
 }
 
 async function refreshProfile(userId?: number): Promise<ProfileData> {
@@ -324,7 +335,8 @@ async function refreshProfile(userId?: number): Promise<ProfileData> {
 }
 
 export function getCachedLeaderboard(): LeaderboardEntry[] | null {
-  return readStaleCache<LeaderboardEntry[]>('duo_leaderboard', getUserId());
+  const cached = readStaleCache<LeaderboardEntry[]>('duo_leaderboard', getUserId());
+  return cached?.length ? normalizeLeaderboardEntries(cached) : null;
 }
 
 export function getCachedProfile(): ProfileData | null {
@@ -505,7 +517,8 @@ export async function refillHearts() {
 }
 
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
-  return fetchWithStaleCache('duo_leaderboard', () => refreshLeaderboard());
+  const data = await fetchWithStaleCache('duo_leaderboard', () => refreshLeaderboard());
+  return normalizeLeaderboardEntries(data);
 }
 
 export async function fetchProfile(): Promise<ProfileData> {

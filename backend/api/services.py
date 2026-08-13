@@ -6,6 +6,15 @@ from .models import (
 )
 
 REGEN_INTERVAL_MINUTES = 60  # 1 heart regenerated every 60 minutes
+ACTIVE_LEAGUE = 'Gold'
+
+
+def ensure_active_league(entry: LeaderboardEntry) -> LeaderboardEntry:
+    """Everyone on the weekly board competes in the same league."""
+    if entry.league != ACTIVE_LEAGUE:
+        entry.league = ACTIVE_LEAGUE
+        entry.save(update_fields=['league'])
+    return entry
 
 
 def calculate_user_hearts(stats: UserStats, current_datetime=None) -> UserStats:
@@ -68,9 +77,28 @@ def update_user_streak(stats: UserStats, activity_date=None) -> int:
     return stats.streak
 
 
+def build_leaderboard_payload(limit=20):
+    """Ordered leaderboard rows with live ranks for the active league."""
+    entries = list(LeaderboardEntry.objects.select_related('user').order_by('-weekly_xp', 'id'))
+    for entry in entries:
+        ensure_active_league(entry)
+
+    data = []
+    for idx, entry in enumerate(entries, start=1):
+        data.append({
+            'id': entry.id,
+            'username': entry.user.username,
+            'weekly_xp': entry.weekly_xp,
+            'league': ACTIVE_LEAGUE,
+            'rank': idx,
+        })
+    return data[:limit]
+
+
 def get_leaderboard_rank(user) -> int:
     """Rank = 1 + number of users with strictly higher weekly XP."""
-    lb, _ = LeaderboardEntry.objects.get_or_create(user=user)
+    lb, _ = LeaderboardEntry.objects.get_or_create(user=user, defaults={'league': ACTIVE_LEAGUE})
+    ensure_active_league(lb)
     return 1 + LeaderboardEntry.objects.filter(weekly_xp__gt=lb.weekly_xp).count()
 
 
@@ -88,7 +116,7 @@ def update_user_achievements(user, stats: UserStats):
     completed_skills = UserProgress.objects.filter(user=user, is_completed=True).count()
     perfect_lessons = UserLessonAttempt.objects.filter(user=user, score=100).count()
     lb = LeaderboardEntry.objects.filter(user=user).first()
-    league_is_gold = bool(lb and lb.league == 'Gold')
+    league_is_gold = bool(lb and lb.league == ACTIVE_LEAGUE)
 
     category_progress = {
         'streak': stats.streak,
@@ -151,10 +179,9 @@ def record_lesson_completion(user, lesson: Lesson, score: int, hearts_lost: int,
     )
 
     # 5. Update Leaderboard Entry
-    lb, _ = LeaderboardEntry.objects.get_or_create(user=user)
+    lb, _ = LeaderboardEntry.objects.get_or_create(user=user, defaults={'league': ACTIVE_LEAGUE})
     lb.weekly_xp += xp_gained
-    if lb.league == 'Bronze':
-        lb.league = 'Gold'
+    ensure_active_league(lb)
     lb.save()
     recalculate_leaderboard_ranks()
     leaderboard_rank = get_leaderboard_rank(user)

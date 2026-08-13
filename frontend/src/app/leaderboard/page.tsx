@@ -5,6 +5,7 @@ import {
   fetchLeaderboard,
   getCachedLeaderboard,
   getCachedStats,
+  normalizeLeaderboardEntries,
   LeaderboardEntry,
   UserStats,
 } from '@/lib/api';
@@ -33,7 +34,7 @@ export default function LeaderboardPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const lbData = await fetchLeaderboard();
+      const lbData = normalizeLeaderboardEntries(await fetchLeaderboard());
       setEntries(lbData);
       const cachedStats = getCachedStats();
       if (cachedStats) setStats(cachedStats);
@@ -50,8 +51,7 @@ export default function LeaderboardPage() {
   }, [authLoading, user, loadData]);
 
   const showContent = entries.length > 0;
-  const myEntry = entries.find((entry) => entry.username === user?.username);
-  const leagueName = myEntry?.league ?? 'Gold';
+  const leagueName = 'Gold';
 
   return (
     <AppShell
@@ -83,8 +83,8 @@ export default function LeaderboardPage() {
             </div>
 
             <div className="divide-y-2 divide-duo-gray dark:divide-duo-dark-border">
-              {entries.map((entry) => {
-                const rank = entry.rank;
+              {entries.map((entry, idx) => {
+                const rank = idx + 1;
                 const isCurrentLearner = entry.username === user?.username;
 
                 return (
@@ -95,12 +95,12 @@ export default function LeaderboardPage() {
                     }`}
                   >
                     <div className="col-span-2 flex items-center justify-center space-x-1">
-                      {rank <= 3 ? (
-                        <Shield
-                          className={`w-5 h-5 sm:w-6 sm:h-6 fill-current ${
-                            rank === 1 ? 'text-duo-gold' : rank === 2 ? 'text-gray-400' : 'text-amber-700'
-                          }`}
-                        />
+                      {rank === 1 ? (
+                        <Shield className="w-5 h-5 sm:w-6 sm:h-6 fill-current text-duo-gold" />
+                      ) : rank === 2 ? (
+                        <Shield className="w-5 h-5 sm:w-6 sm:h-6 fill-current text-gray-400" />
+                      ) : rank === 3 ? (
+                        <Shield className="w-5 h-5 sm:w-6 sm:h-6 fill-current text-amber-700" />
                       ) : (
                         <span className="font-black text-gray-500">{rank}</span>
                       )}
