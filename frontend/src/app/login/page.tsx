@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { wakeBackend } from '@/lib/http';
 import { MascotOwl } from '@/components/MascotOwl';
 import { GoogleSignIn } from '@/components/GoogleSignIn';
-import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function LoginPage() {
   const { login, loginWithGoogle } = useAuth();
@@ -14,6 +15,34 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [serverReady, setServerReady] = useState(false);
+  const [wakingServer, setWakingServer] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setWakingServer(true);
+      const ok = await wakeBackend();
+      if (!cancelled) {
+        setServerReady(ok);
+        setWakingServer(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleWakeServer = async () => {
+    setWakingServer(true);
+    setError('');
+    const ok = await wakeBackend();
+    setServerReady(ok);
+    setWakingServer(false);
+    if (!ok) {
+      setError('Server is still waking up. Wait 30 seconds and try again.');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +84,28 @@ export default function LoginPage() {
               <h1 className="text-3xl font-black text-gray-800 tracking-tight">Welcome back!</h1>
               <p className="text-gray-500 font-bold mt-1 text-sm">Log in to continue your streak 🔥</p>
             </div>
+
+            {/* Server wake-up banner */}
+            {wakingServer && (
+              <div className="mb-5 flex items-center gap-2 bg-amber-50 border-2 border-amber-200 text-amber-800 px-4 py-3 rounded-2xl font-bold text-sm">
+                <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                Connecting to server… (Render free tier may take ~30s)
+              </div>
+            )}
+
+            {!wakingServer && !serverReady && (
+              <div className="mb-5 flex flex-col gap-2 bg-amber-50 border-2 border-amber-200 text-amber-800 px-4 py-3 rounded-2xl font-bold text-sm">
+                <span>Server is waking up. Wait a moment before logging in.</span>
+                <button
+                  type="button"
+                  onClick={handleWakeServer}
+                  className="flex items-center justify-center gap-2 text-xs font-black text-amber-900 underline"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Retry connection
+                </button>
+              </div>
+            )}
 
             {/* Error */}
             {error && (
