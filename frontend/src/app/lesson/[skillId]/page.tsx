@@ -3,10 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import confetti from 'canvas-confetti';
-import { X, Heart, Check, Volume2, Clock } from 'lucide-react';
-import { fetchSkillLesson, getCachedSkillLesson, submitLessonResult, Lesson, Exercise } from '@/lib/api';
+import { X, Heart, Check, Volume2, Clock, RefreshCw, Flame, Unlock } from 'lucide-react';
+import { fetchSkillLesson, getCachedSkillLesson, submitLessonResult, Lesson, Exercise, LessonCompletionResult } from '@/lib/api';
 import { MascotOwl } from '@/components/MascotOwl';
-import { RefreshCw } from 'lucide-react';
+import { AnimatedCounter } from '@/components/AnimatedCounter';
 
 interface Option {
   text: string;
@@ -46,6 +46,8 @@ export default function LessonPlayerPage() {
   const [showQuitModal, setShowQuitModal] = useState(false);
   const [isOutOfHearts, setIsOutOfHearts] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [completionResult, setCompletionResult] = useState<LessonCompletionResult | null>(null);
+  const [submittingResult, setSubmittingResult] = useState(false);
 
   // Timer for Legendary Mode
   const [timeLeft, setTimeLeft] = useState(60);
@@ -158,13 +160,13 @@ export default function LessonPlayerPage() {
       setupExercise(lesson.exercises[nextIdx]);
     } else {
       setIsCompleted(true);
+      setSubmittingResult(true);
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-      try {
-        const score = Math.round(((lesson.exercises.length - heartsLost) / lesson.exercises.length) * 100);
-        await submitLessonResult(lesson.id, Math.max(0, score), heartsLost, skillId);
-      } catch (err) {
-        console.error('Error submitting lesson results:', err);
-      }
+      const score = Math.round(((lesson.exercises.length - heartsLost) / lesson.exercises.length) * 100);
+      submitLessonResult(lesson.id, Math.max(0, score), heartsLost, skillId)
+        .then((result) => setCompletionResult(result))
+        .catch((err) => console.error('Error submitting lesson results:', err))
+        .finally(() => setSubmittingResult(false));
     }
   };
 
@@ -493,26 +495,53 @@ export default function LessonPlayerPage() {
 
       {isCompleted && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-duo-dark-card border-4 border-duo-gold rounded-3xl max-w-md w-full p-6 text-center shadow-2xl space-y-5">
+          <div className="bg-white dark:bg-duo-dark-card border-4 border-duo-gold rounded-3xl max-w-md w-full p-6 text-center shadow-2xl space-y-5 animate-scale-in">
             <MascotOwl emotion="celebrating" width={130} height={130} className="mx-auto" />
             <h2 className="text-3xl font-black text-duo-gold">Lesson Complete!</h2>
+
+            {completionResult?.streak_increased && (
+              <div className="flex items-center justify-center gap-2 py-2 px-4 bg-orange-50 dark:bg-orange-950/40 border-2 border-orange-400 rounded-2xl animate-bounce-in">
+                <Flame className="w-6 h-6 text-orange-500 fill-orange-500" />
+                <span className="font-black text-orange-600 dark:text-orange-300">
+                  <AnimatedCounter value={completionResult.streak} /> day streak!
+                </span>
+              </div>
+            )}
+
+            {completionResult?.next_skill_unlocked_id && (
+              <div className="flex items-center justify-center gap-2 py-2 px-4 bg-green-50 dark:bg-green-950/40 border-2 border-duo-green rounded-2xl animate-bounce-in">
+                <Unlock className="w-5 h-5 text-duo-green" />
+                <span className="font-black text-duo-green text-sm">Next lesson unlocked!</span>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border-2 border-duo-gold rounded-2xl">
-                <span className="block text-xs font-black text-amber-700 uppercase">TOTAL XP</span>
-                <span className="text-2xl font-black text-duo-gold">+{isLegendary ? 20 : 10} XP</span>
+                <span className="block text-xs font-black text-amber-700 uppercase">XP Earned</span>
+                <span className="text-2xl font-black text-duo-gold">
+                  {completionResult ? (
+                    <>+<AnimatedCounter value={completionResult.xp_gained} /></>
+                  ) : submittingResult ? (
+                    '...'
+                  ) : (
+                    `+${isLegendary ? 20 : lesson.xp_reward || 10}`
+                  )}
+                </span>
               </div>
               <div className="p-4 bg-green-50 dark:bg-green-950/40 border-2 border-duo-green rounded-2xl">
-                <span className="block text-xs font-black text-duo-green uppercase">ACCURACY</span>
+                <span className="block text-xs font-black text-duo-green uppercase">Accuracy</span>
                 <span className="text-2xl font-black text-duo-green">
                   {Math.round(((lesson.exercises.length - heartsLost) / lesson.exercises.length) * 100)}%
                 </span>
               </div>
             </div>
+
             <button
               onClick={() => router.push('/')}
-              className="w-full btn-duo btn-duo-green py-3 text-xl"
+              disabled={submittingResult}
+              className="w-full btn-duo btn-duo-green py-3 text-xl disabled:opacity-70"
             >
-              GREAT!
+              {submittingResult ? 'Saving progress...' : 'CONTINUE'}
             </button>
           </div>
         </div>

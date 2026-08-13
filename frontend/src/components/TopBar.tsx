@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Flame, Zap, Heart, Gem, Moon, Sun } from 'lucide-react';
 import { refillHearts } from '@/lib/api';
+import { AnimatedCounter } from '@/components/AnimatedCounter';
 
 interface TopBarProps {
   streak?: number;
@@ -65,13 +66,13 @@ export const TopBar: React.FC<TopBarProps> = ({
           {/* Streak Flame */}
           <div className="flex items-center space-x-1 text-orange-500 hover:scale-105 transition-transform cursor-default" title="Daily Streak">
             <Flame className="w-5 h-5 sm:w-6 sm:h-6 fill-orange-500 stroke-orange-600 animate-pulse" />
-            <span>{streak}</span>
+            <AnimatedCounter value={streak} className="tabular-nums" />
           </div>
 
           {/* XP Total */}
           <div className="flex items-center space-x-1 text-duo-gold hover:scale-105 transition-transform cursor-default" title="Total XP">
             <Zap className="w-5 h-5 sm:w-6 sm:h-6 fill-duo-gold stroke-yellow-600" />
-            <span>{xp}</span>
+            <AnimatedCounter value={xp} className="tabular-nums" />
           </div>
 
           {/* Hearts Counter */}

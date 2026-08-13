@@ -5,6 +5,8 @@ import Link from 'next/link';
 import {
   fetchDashboard,
   getCachedDashboard,
+  consumeLessonCompleteHighlight,
+  syncDashboardFromCache,
   Unit,
   Skill,
   UserStats,
@@ -24,6 +26,15 @@ export default function HomePage() {
   const [legendaryMode, setLegendaryMode] = useState(false);
   const [pathLoading, setPathLoading] = useState(() => !(cached?.path?.length));
   const [error, setError] = useState('');
+  const [highlightSkillId, setHighlightSkillId] = useState<number | null>(null);
+
+  const syncFromCache = useCallback(() => {
+    const fresh = syncDashboardFromCache();
+    if (fresh) {
+      setUnits(fresh.path);
+      setStats(fresh.stats);
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     setError('');
@@ -41,8 +52,20 @@ export default function HomePage() {
 
   useEffect(() => {
     if (authLoading || !user) return;
+    syncFromCache();
     loadData();
-  }, [authLoading, user, loadData]);
+  }, [authLoading, user, loadData, syncFromCache]);
+
+  useEffect(() => {
+    const highlight = consumeLessonCompleteHighlight();
+    if (highlight?.nextSkillId) {
+      setHighlightSkillId(highlight.nextSkillId);
+      syncFromCache();
+      const timer = setTimeout(() => setHighlightSkillId(null), 4000);
+      return () => clearTimeout(timer);
+    }
+    if (highlight) syncFromCache();
+  }, [syncFromCache]);
 
   useEffect(() => {
     if (selectedSkill) prefetchSkillLesson(selectedSkill.id);
@@ -118,6 +141,7 @@ export default function HomePage() {
                   {unit.skills.map((skill, sIdx) => {
                     const offset = getHorizontalOffset(sIdx);
                     const isNext = skill.is_unlocked && !skill.is_completed && skill.completed_lessons === 0;
+                    const isNewlyUnlocked = highlightSkillId === skill.id;
 
                     return (
                       <div
@@ -125,9 +149,9 @@ export default function HomePage() {
                         style={{ transform: `translateX(${offset}px)` }}
                         className="relative flex flex-col items-center group transition-transform duration-300"
                       >
-                        {isNext && (
-                          <div className="absolute -top-10 sm:-top-12 z-20 bg-white dark:bg-duo-dark-card border-2 border-duo-green px-3 py-1 rounded-xl shadow-md font-black text-xs text-duo-green flex items-center space-x-1.5 animate-bounce">
-                            <span>START</span>
+                        {(isNext || isNewlyUnlocked) && (
+                          <div className={`absolute -top-10 sm:-top-12 z-20 bg-white dark:bg-duo-dark-card border-2 border-duo-green px-3 py-1 rounded-xl shadow-md font-black text-xs text-duo-green flex items-center space-x-1.5 ${isNewlyUnlocked ? 'animate-bounce-in' : 'animate-bounce'}`}>
+                            <span>{isNewlyUnlocked ? 'UNLOCKED!' : 'START'}</span>
                             <Play className="w-3 h-3 fill-duo-green" />
                           </div>
                         )}
@@ -137,11 +161,11 @@ export default function HomePage() {
                             if (skill.is_unlocked) setSelectedSkill(skill);
                           }}
                           disabled={!skill.is_unlocked}
-                          className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center relative border-b-4 transition-all ${
+                          className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center relative border-b-4 transition-all duration-500 ${
                             skill.is_completed
                               ? 'bg-duo-gold border-yellow-600 text-white shadow-lg hover:scale-105'
                               : skill.is_unlocked
-                              ? 'bg-duo-green border-green-700 text-white shadow-lg hover:scale-105 animate-pulse-glow'
+                              ? `bg-duo-green border-green-700 text-white shadow-lg hover:scale-105 ${isNewlyUnlocked ? 'animate-unlock-pop' : 'animate-pulse-glow'}`
                               : 'bg-gray-200 dark:bg-duo-dark-card border-gray-400 dark:border-duo-dark-border text-gray-400 cursor-not-allowed'
                           }`}
                         >

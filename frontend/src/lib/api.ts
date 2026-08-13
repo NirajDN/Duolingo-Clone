@@ -138,6 +138,27 @@ export interface ProfileData {
   achievements: Achievement[];
 }
 
+export interface LessonCompletionResult {
+  xp_gained: number;
+  new_total_xp: number;
+  streak: number;
+  hearts: number;
+  skill_completed: boolean;
+  completed_lessons: number;
+  current_crown: number;
+  next_skill_unlocked_id: number | null;
+  streak_increased: boolean;
+}
+
+export interface LessonCompleteHighlight {
+  skillId: number;
+  nextSkillId: number | null;
+  streakIncreased: boolean;
+  xpGained: number;
+}
+
+const LESSON_COMPLETE_KEY = 'duo_lesson_complete';
+
 function cacheDashboard(data: DashboardData, userId?: number) {
   writeCache('duo_dashboard', data, userId);
   writeCache('duo_path', data.path, userId);
@@ -161,6 +182,68 @@ export function getCachedPath(): Unit[] | null {
 
 export function getCachedStats(): UserStats | null {
   return getCachedDashboard()?.stats ?? readStaleCache<UserStats>('duo_stats', getUserId());
+}
+
+export function applyLessonCompletionToCache(
+  skillId: number,
+  result: LessonCompletionResult
+) {
+  const cached = getCachedDashboard();
+  if (!cached) return;
+
+  const stats: UserStats = {
+    ...cached.stats,
+    xp: result.new_total_xp,
+    streak: result.streak,
+    hearts: result.hearts,
+    daily_xp_today: cached.stats.daily_xp_today + result.xp_gained,
+  };
+
+  const path = cached.path.map((unit) => ({
+    ...unit,
+    skills: unit.skills.map((skill) => {
+      if (skill.id === skillId) {
+        return {
+          ...skill,
+          completed_lessons: result.completed_lessons,
+          current_crown: result.current_crown,
+          is_completed: result.skill_completed,
+        };
+      }
+      if (result.next_skill_unlocked_id && skill.id === result.next_skill_unlocked_id) {
+        return { ...skill, is_unlocked: true };
+      }
+      return skill;
+    }),
+  }));
+
+  cacheDashboard({ path, stats });
+}
+
+export function setLessonCompleteHighlight(highlight: LessonCompleteHighlight) {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(LESSON_COMPLETE_KEY, JSON.stringify(highlight));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function consumeLessonCompleteHighlight(): LessonCompleteHighlight | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(LESSON_COMPLETE_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(LESSON_COMPLETE_KEY);
+    return JSON.parse(raw) as LessonCompleteHighlight;
+  } catch {
+    return null;
+  }
+}
+
+export function syncDashboardFromCache(): DashboardData | null {
+  const cached = getCachedDashboard();
+  return cached;
 }
 
 async function refreshDashboard(userId?: number): Promise<DashboardData> {
@@ -306,13 +389,27 @@ export async function submitLessonResult(
   score: number,
   heartsLost: number,
   skillId?: number
-) {
-  const result = await authJson(`${API_BASE}/lessons/${lessonId}/complete/`, {
-    method: 'POST',
-    body: JSON.stringify({ score, hearts_lost: heartsLost }),
-  });
-  invalidateUserCache();
-  if (skillId) invalidateSkillLessonCache(skillId);
+): Promise<LessonCompletionResult> {
+  const result = await authJson<LessonCompletionResult>(
+    `${API_BASE}/lessons/${lessonId}/complete/`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ score, hearts_lost: heartsLost }),
+    }
+  );
+
+  if (skillId) {
+    applyLessonCompletionToCache(skillId, result);
+    invalidateSkillLessonCache(skillId);
+    setLessonCompleteHighlight({
+      skillId,
+      nextSkillId: result.next_skill_unlocked_id,
+      streakIncreased: result.streak_increased,
+      xpGained: result.xp_gained,
+    });
+  }
+
+  void refreshDashboard().catch(() => {});
   return result;
 }
 

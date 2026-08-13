@@ -92,7 +92,9 @@ def record_lesson_completion(user, lesson: Lesson, score: int, hearts_lost: int,
     stats.daily_xp_today += xp_gained
 
     # 3. Update Streak
+    old_streak = stats.streak
     update_user_streak(stats, activity_date=today)
+    streak_increased = stats.streak > old_streak
     stats.save()
 
     # 4. Record Lesson Attempt
@@ -132,10 +134,12 @@ def record_lesson_completion(user, lesson: Lesson, score: int, hearts_lost: int,
         if next_unit:
             next_skill = next_unit.skills.first()
 
+    next_skill_id = None
     if next_skill:
         next_progress, _ = UserProgress.objects.get_or_create(user=user, skill=next_skill)
         next_progress.is_unlocked = True
         next_progress.save()
+        next_skill_id = next_skill.id
 
     return {
         'xp_gained': xp_gained,
@@ -143,4 +147,8 @@ def record_lesson_completion(user, lesson: Lesson, score: int, hearts_lost: int,
         'streak': stats.streak,
         'hearts': stats.hearts,
         'skill_completed': progress.is_completed,
+        'completed_lessons': progress.completed_lessons,
+        'current_crown': progress.current_crown,
+        'next_skill_unlocked_id': next_skill_id,
+        'streak_increased': streak_increased,
     }
