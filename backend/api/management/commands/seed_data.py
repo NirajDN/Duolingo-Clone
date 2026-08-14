@@ -1,12 +1,203 @@
-from django.core.management.base import BaseCommand
+from datetime import date
+
 from django.contrib.auth.models import User
+from django.core.management.base import BaseCommand
 from django.utils import timezone
-from datetime import date, timedelta
+
 from api.models import (
-    Language, Unit, Skill, Lesson, Exercise,
-    UserStats, UserProgress, LeaderboardEntry,
-    Achievement, UserAchievement
+    Achievement,
+    Exercise,
+    Language,
+    LeaderboardEntry,
+    Lesson,
+    Skill,
+    Unit,
+    UserAchievement,
+    UserProgress,
+    UserStats,
 )
+
+
+def build_default_exercises(skill_title: str):
+    """Generate polished fallback exercises instead of placeholder A/B/C items."""
+    templates = {
+        'Hobbies': [
+            {
+                'type': 'multiple_choice',
+                'prompt': 'What does "leer" mean?',
+                'order': 1,
+                'content': {
+                    'question': 'leer',
+                    'options': [
+                        {'text': 'to read', 'correct': True},
+                        {'text': 'to write', 'correct': False},
+                        {'text': 'to run', 'correct': False},
+                        {'text': 'to dance', 'correct': False},
+                    ],
+                },
+            },
+            {
+                'type': 'translate',
+                'prompt': 'Translate this sentence',
+                'order': 2,
+                'content': {
+                    'source_text': 'Me gusta escuchar música.',
+                    'correct_words': ['I', 'like', 'listening', 'to', 'music.'],
+                    'word_bank': ['I', 'like', 'listening', 'to', 'music.', 'game', 'book', 'travel'],
+                },
+            },
+            {
+                'type': 'match_pairs',
+                'prompt': 'Match the hobbies',
+                'order': 3,
+                'content': {
+                    'pairs': [
+                        {'left': 'leer', 'right': 'to read'},
+                        {'left': 'cantar', 'right': 'to sing'},
+                        {'left': 'pintar', 'right': 'to paint'},
+                        {'left': 'bailar', 'right': 'to dance'},
+                    ],
+                },
+            },
+            {
+                'type': 'fill_blank',
+                'prompt': 'Complete the sentence',
+                'order': 4,
+                'content': {
+                    'sentence_parts': ['Yo ', ' en el parque.'],
+                    'correct_word': 'corro',
+                    'options': ['corro', 'bebo', 'duermo', 'escucho'],
+                },
+            },
+            {
+                'type': 'type_answer',
+                'prompt': 'Type the English translation',
+                'order': 5,
+                'content': {
+                    'prompt_text': 'Juego al fútbol los domingos.',
+                    'accepted_answers': ['I play soccer on Sundays.', 'I play football on Sundays.'],
+                },
+            },
+        ],
+        'Travel': [
+            {
+                'type': 'multiple_choice',
+                'prompt': 'How do you ask for the station?',
+                'order': 1,
+                'content': {
+                    'question': 'Where is the train station?',
+                    'options': [
+                        {'text': '¿Dónde está la estación?', 'correct': True},
+                        {'text': '¿Por qué estás aquí?', 'correct': False},
+                        {'text': '¿Cuánto cuesta?', 'correct': False},
+                        {'text': '¿Qué hora es?', 'correct': False},
+                    ],
+                },
+            },
+            {
+                'type': 'translate',
+                'prompt': 'Translate this sentence',
+                'order': 2,
+                'content': {
+                    'source_text': 'Necesito un boleto para Madrid.',
+                    'correct_words': ['I', 'need', 'a', 'ticket', 'to', 'Madrid.'],
+                    'word_bank': ['I', 'need', 'a', 'ticket', 'to', 'Madrid.', 'bus', 'book', 'home'],
+                },
+            },
+            {
+                'type': 'match_pairs',
+                'prompt': 'Match the travel words',
+                'order': 3,
+                'content': {
+                    'pairs': [
+                        {'left': 'autobús', 'right': 'bus'},
+                        {'left': 'tren', 'right': 'train'},
+                        {'left': 'aeropuerto', 'right': 'airport'},
+                        {'left': 'coche', 'right': 'car'},
+                    ],
+                },
+            },
+            {
+                'type': 'fill_blank',
+                'prompt': 'Complete the sentence',
+                'order': 4,
+                'content': {
+                    'sentence_parts': ['¿Puedes ir a la ', '?'],
+                    'correct_word': 'estación',
+                    'options': ['estación', 'comida', 'puerta', 'casa'],
+                },
+            },
+            {
+                'type': 'type_answer',
+                'prompt': 'Type the Spanish answer',
+                'order': 5,
+                'content': {
+                    'prompt_text': 'The flight leaves at 8:30.',
+                    'accepted_answers': ['El vuelo sale a las ocho y media.', 'El vuelo sale a las 8:30.', 'el vuelo sale a las ocho y media.'],
+                },
+            },
+        ],
+    }
+
+    fallback = [
+        {
+            'type': 'multiple_choice',
+            'prompt': f'Select the best answer for {skill_title}.',
+            'order': 1,
+            'content': {
+                'question': skill_title,
+                'options': [
+                    {'text': 'I understand the lesson well.', 'correct': True},
+                    {'text': 'I am reading a sandwich.', 'correct': False},
+                    {'text': 'The window is a bird.', 'correct': False},
+                    {'text': 'We cook in the sky.', 'correct': False},
+                ],
+            },
+        },
+        {
+            'type': 'translate',
+            'prompt': 'Translate this sentence',
+            'order': 2,
+            'content': {
+                'source_text': 'Estoy aprendiendo español cada día.',
+                'correct_words': ['I', 'am', 'learning', 'Spanish', 'every', 'day.'],
+                'word_bank': ['I', 'am', 'learning', 'Spanish', 'every', 'day.', 'dog', 'coffee', 'music'],
+            },
+        },
+        {
+            'type': 'match_pairs',
+            'prompt': 'Match the words',
+            'order': 3,
+            'content': {
+                'pairs': [
+                    {'left': 'escuchar', 'right': 'to listen'},
+                    {'left': 'aprender', 'right': 'to learn'},
+                    {'left': 'caminar', 'right': 'to walk'},
+                    {'left': 'estudiar', 'right': 'to study'},
+                ],
+            },
+        },
+        {
+            'type': 'fill_blank',
+            'prompt': 'Complete the sentence',
+            'order': 4,
+            'content': {
+                'sentence_parts': ['Hoy yo ', ' mucho.'],
+                'correct_word': 'aprendo',
+                'options': ['aprendo', 'comes', 'duerme', 'hablas'],
+            },
+        },
+        {
+            'type': 'type_answer',
+            'prompt': 'Type the English translation',
+            'order': 5,
+            'content': {
+                'prompt_text': 'Hola, ¿cómo estás?',
+                'accepted_answers': ['Hello, how are you?', 'Hi, how are you?'],
+            },
+        },
+    ]
+    return templates.get(skill_title, fallback)
 
 
 class Command(BaseCommand):
@@ -223,64 +414,7 @@ class Command(BaseCommand):
                         }
                     ]
                 else:
-                    # Default template exercises for other skills
-                    exercises_data = [
-                        {
-                            'type': 'multiple_choice',
-                            'prompt': f'Select the correct word for {skill.title}',
-                            'order': 1,
-                            'content': {
-                                'question': skill.title,
-                                'options': [
-                                    {'text': f'Opción A ({skill.title})', 'correct': True},
-                                    {'text': 'Opción B', 'correct': False},
-                                    {'text': 'Opción C', 'correct': False},
-                                ]
-                            }
-                        },
-                        {
-                            'type': 'translate',
-                            'prompt': 'Translate this phrase',
-                            'order': 2,
-                            'content': {
-                                'source_text': f'Práctica de {skill.title}',
-                                'correct_words': ['Practice', 'of', skill.title],
-                                'word_bank': ['Practice', 'of', skill.title, 'good', 'day', 'hello']
-                            }
-                        },
-                        {
-                            'type': 'match_pairs',
-                            'prompt': 'Match the pairs',
-                            'order': 3,
-                            'content': {
-                                'pairs': [
-                                    {'left': 'Uno', 'right': 'One'},
-                                    {'left': 'Dos', 'right': 'Two'},
-                                    {'left': 'Tres', 'right': 'Three'},
-                                    {'left': 'Cuatro', 'right': 'Four'},
-                                ]
-                            }
-                        },
-                        {
-                            'type': 'fill_blank',
-                            'prompt': 'Fill in the blank',
-                            'order': 4,
-                            'content': {
-                                'sentence_parts': ['Yo ', ' español.'],
-                                'correct_word': 'hablo',
-                                'options': ['hablo', 'comes', 'bebe', 'somos']
-                            }
-                        },
-                        {
-                            'type': 'type_answer',
-                            'prompt': 'Type the English translation',
-                            'order': 5,
-                            'content': {
-                                'prompt_text': 'Buenos días',
-                                'accepted_answers': ['Good morning', 'good morning']
-                            }
-                        }
-                    ]
+                    exercises_data = build_default_exercises(skill.title)
 
                 for ex_info in exercises_data:
                     Exercise.objects.create(

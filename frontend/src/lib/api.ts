@@ -340,6 +340,10 @@ export function applyLessonCompletionToCache(
 
   cacheDashboard({ path, stats });
 
+  // Ensure next attempt for this skill loads the newly active lesson.
+  invalidateSkillLessonCache(skillId);
+  prefetchSkillLesson(skillId);
+
   if (result.next_skill_unlocked_id) {
     prefetchSkillLesson(result.next_skill_unlocked_id);
   }
@@ -715,17 +719,12 @@ export async function fetchProfile(): Promise<ProfileData> {
   const stale = readStaleCache<ProfileData>('duo_profile', userId);
   const enrichedStale = stale ? enrichProfile(stale) : null;
 
-  if (!enrichedStale?.leaderboard?.rank) {
-    try {
-      return await refreshProfile(userId);
-    } catch (err) {
-      if (enrichedStale) return enrichedStale;
-      throw err;
-    }
+  if (enrichedStale) {
+    void refreshProfile(userId).catch(() => {});
+    return enrichedStale;
   }
 
-  void refreshProfile(userId).catch(() => {});
-  return enrichedStale;
+  return refreshProfile(userId);
 }
 
 export function invalidateProfileCache() {

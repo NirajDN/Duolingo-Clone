@@ -131,24 +131,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router, persistSession]);
 
   const logout = useCallback(async () => {
-    const refresh = localStorage.getItem('duo_refresh');
+    const refresh = typeof window !== 'undefined' ? localStorage.getItem('duo_refresh') : null;
     try {
       if (refresh) {
         await fetchWithRetry(`${API_BASE}/auth/logout/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh }),
-        });
+        }).catch(() => undefined);
       }
     } catch {
       /* ignore */
+    } finally {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('duo_access');
+        localStorage.removeItem('duo_refresh');
+        localStorage.removeItem('duo_user');
+      }
+      setToken(null);
+      setUser(null);
+      router.replace('/login');
+      router.refresh();
     }
-    localStorage.removeItem('duo_access');
-    localStorage.removeItem('duo_refresh');
-    localStorage.removeItem('duo_user');
-    setToken(null);
-    setUser(null);
-    router.replace('/login');
   }, [router]);
 
   return (

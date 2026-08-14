@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { fetchProfile, fetchLeaderboard, getCachedProfile, ProfileData } from '@/lib/api';
+import { fetchProfile, getCachedProfile, ProfileData } from '@/lib/api';
 import { AppShell } from '@/components/AppShell';
 import { MascotOwl } from '@/components/MascotOwl';
 import { useAuth } from '@/context/AuthContext';
@@ -32,7 +32,6 @@ export default function ProfilePage() {
 
   const loadProfile = useCallback(async () => {
     try {
-      void fetchLeaderboard().catch(() => {});
       const data = await fetchProfile();
       setProfile(data);
     } catch (err) {

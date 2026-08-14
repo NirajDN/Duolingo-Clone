@@ -217,7 +217,17 @@ def get_skill_lesson(request, skill_id):
         ),
         pk=skill_id,
     )
-    lesson = skill.lessons.first()
+    progress = UserProgress.objects.filter(user=request.user, skill=skill).first()
+    is_unlocked = (skill.order == 1 and skill.unit.order == 1) or bool(progress and progress.is_unlocked)
+    if not is_unlocked:
+        return Response({'detail': 'This skill is locked.'}, status=status.HTTP_403_FORBIDDEN)
+
+    lessons = list(skill.lessons.all())
+    if not lessons:
+        return Response({'detail': 'No lessons found for this skill.'}, status=status.HTTP_404_NOT_FOUND)
+
+    completed_lessons = progress.completed_lessons if progress else 0
+    lesson = lessons[completed_lessons % len(lessons)]
     if not lesson:
         return Response({'detail': 'No lessons found for this skill.'}, status=status.HTTP_404_NOT_FOUND)
     serializer = LessonSerializer(lesson)

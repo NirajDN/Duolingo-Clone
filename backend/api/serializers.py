@@ -75,13 +75,22 @@ class SkillPathSerializer(serializers.ModelSerializer):
         lessons = obj.lessons.all()
         return len(lessons) or 1
 
+    def _get_active_lesson(self, obj):
+        lessons = list(obj.lessons.all())
+        if not lessons:
+            return None
+        progress = self.get_user_progress(obj)
+        if not progress or progress.completed_lessons <= 0:
+            return lessons[0]
+        return lessons[progress.completed_lessons % len(lessons)]
+
     def get_lesson(self, obj):
         if not self.get_is_unlocked(obj):
             return None
-        first_lesson = obj.lessons.first()
-        if not first_lesson:
+        active_lesson = self._get_active_lesson(obj)
+        if not active_lesson:
             return None
-        return LessonSerializer(first_lesson).data
+        return LessonSerializer(active_lesson).data
 
 
 class UnitPathSerializer(serializers.ModelSerializer):
