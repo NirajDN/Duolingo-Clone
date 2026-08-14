@@ -309,18 +309,28 @@ export function applyLessonCompletionToCache(
   skillId: number,
   result: LessonCompletionResult
 ) {
+  const userId = getUserId();
   const cached = getCachedDashboard();
-  if (!cached) return;
+  const basePath = cached?.path ?? readStaleCache<Unit[]>('duo_path', userId);
+  const baseStats = cached?.stats ?? readStaleCache<UserStats>('duo_stats', userId);
+
+  if (!basePath || !baseStats) {
+    void prefetchDashboard(userId);
+    if (result.next_skill_unlocked_id) {
+      prefetchSkillLesson(result.next_skill_unlocked_id);
+    }
+    return;
+  }
 
   const stats: UserStats = {
-    ...cached.stats,
+    ...baseStats,
     xp: result.new_total_xp,
     streak: result.streak,
     hearts: result.hearts,
-    daily_xp_today: cached.stats.daily_xp_today + result.xp_gained,
+    daily_xp_today: baseStats.daily_xp_today + result.xp_gained,
   };
 
-  const path = cached.path.map((unit) => ({
+  const path = basePath.map((unit) => ({
     ...unit,
     skills: unit.skills.map((skill) => {
       if (skill.id === skillId) {
@@ -378,10 +388,13 @@ export function buildOptimisticLessonResult(
   lesson: Lesson,
   heartsLost: number
 ): LessonCompletionResult | null {
+  const userId = getUserId();
   const cached = getCachedDashboard();
-  if (!cached) return null;
+  const basePath = cached?.path ?? readStaleCache<Unit[]>('duo_path', userId);
+  const baseStats = cached?.stats ?? readStaleCache<UserStats>('duo_stats', userId);
+  if (!basePath || !baseStats) return null;
 
-  const located = findSkillInPath(cached.path, skillId);
+  const located = findSkillInPath(basePath, skillId);
   if (!located) return null;
 
   const { skill } = located;
@@ -393,8 +406,8 @@ export function buildOptimisticLessonResult(
   const skillCompleted = lessonsDone && nextCrown >= skill.total_crowns;
   const xpGained = lesson.xp_reward || 10;
   const today = new Date().toISOString().slice(0, 10);
-  const lastActive = cached.stats.last_active_date;
-  let streak = cached.stats.streak;
+  const lastActive = baseStats.last_active_date;
+  let streak = baseStats.streak;
   let streakIncreased = false;
 
   if (!lastActive) {
@@ -410,13 +423,13 @@ export function buildOptimisticLessonResult(
 
   return {
     xp_gained: xpGained,
-    new_total_xp: cached.stats.xp + xpGained,
+    new_total_xp: baseStats.xp + xpGained,
     streak,
-    hearts: Math.max(0, cached.stats.hearts - heartsLost),
+    hearts: Math.max(0, baseStats.hearts - heartsLost),
     skill_completed: skillCompleted,
     completed_lessons: completedLessons,
     current_crown: nextCrown,
-    next_skill_unlocked_id: predictNextSkillId(cached.path, skillId),
+    next_skill_unlocked_id: predictNextSkillId(basePath, skillId),
     streak_increased: streakIncreased,
     leaderboard_rank: 0,
     weekly_xp: 0,
