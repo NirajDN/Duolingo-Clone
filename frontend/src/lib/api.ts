@@ -215,6 +215,10 @@ function cacheDashboard(data: DashboardData, userId?: number) {
   cacheLessonsFromPath(data.path, userId);
 }
 
+export function primeDashboardCache(path: Unit[], stats: UserStats, userId?: number) {
+  cacheDashboard({ path, stats }, userId ?? getUserId());
+}
+
 /** Keep optimistic progress when the server has not caught up yet. */
 function mergeDashboardData(cached: DashboardData, server: DashboardData): DashboardData {
   const mergedPath = server.path.map((unit, unitIdx) => ({
@@ -443,7 +447,22 @@ export function stageOptimisticLessonCompletion(
   heartsLost: number
 ): LessonCompletionResult | null {
   const optimistic = buildOptimisticLessonResult(skillId, lesson, heartsLost);
-  if (!optimistic) return null;
+  if (!optimistic) {
+    const userId = getUserId();
+    const stats = getCachedStats();
+    if (stats) {
+      const xpGained = lesson.xp_reward || 10;
+      const fallbackStats: UserStats = {
+        ...stats,
+        xp: stats.xp + xpGained,
+        hearts: Math.max(0, stats.hearts - heartsLost),
+        daily_xp_today: stats.daily_xp_today + xpGained,
+      };
+      writeCache('duo_stats', fallbackStats, userId);
+    }
+    void prefetchDashboard(userId);
+    return null;
+  }
 
   applyLessonCompletionToCache(skillId, optimistic);
   setLessonCompleteHighlight({

@@ -10,6 +10,7 @@ import {
   getCachedSkillLesson,
   stageSkillLesson,
   cacheSkillLesson,
+  primeDashboardCache,
   Unit,
   Skill,
   UserStats,
@@ -95,6 +96,9 @@ export default function HomePage() {
 
   const handleStartLesson = () => {
     if (!selectedSkill) return;
+    if (units.length > 0 && stats) {
+      primeDashboardCache(units, stats);
+    }
     const lesson =
       selectedSkill.lesson ??
       getCachedSkillLesson(selectedSkill.id);
