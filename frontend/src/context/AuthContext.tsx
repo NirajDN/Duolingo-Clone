@@ -134,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const refresh = typeof window !== 'undefined' ? localStorage.getItem('duo_refresh') : null;
     try {
       if (refresh) {
-        await fetchWithRetry(`${API_BASE}/auth/logout/`, {
+        void fetchWithRetry(`${API_BASE}/auth/logout/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh }),
