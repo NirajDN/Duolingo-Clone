@@ -244,8 +244,35 @@ def complete_lesson(request, lesson_id):
     user = request.user
     lesson = get_object_or_404(Lesson, pk=lesson_id)
 
-    score = request.data.get('score', 100)
-    hearts_lost = request.data.get('hearts_lost', 0)
+    try:
+        score = int(request.data.get('score', 100))
+        hearts_lost = int(request.data.get('hearts_lost', 0))
+    except (TypeError, ValueError):
+        return Response({'detail': 'Invalid score or hearts_lost value.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if score < 0 or score > 100:
+        return Response({'detail': 'Score must be between 0 and 100.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if hearts_lost < 0 or hearts_lost > 5:
+        return Response({'detail': 'hearts_lost must be between 0 and 5.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    skill = lesson.skill
+    progress = UserProgress.objects.filter(user=user, skill=skill).first()
+    is_unlocked = (skill.order == 1 and skill.unit.order == 1) or bool(progress and progress.is_unlocked)
+    if not is_unlocked:
+        return Response({'detail': 'Skill is locked.'}, status=status.HTTP_403_FORBIDDEN)
+
+    lessons = list(skill.lessons.all())
+    if not lessons:
+        return Response({'detail': 'No lessons found for this skill.'}, status=status.HTTP_404_NOT_FOUND)
+
+    completed_lessons = progress.completed_lessons if progress else 0
+    expected_lesson = lessons[completed_lessons % len(lessons)]
+    if expected_lesson.id != lesson.id:
+        return Response(
+            {'detail': 'Complete the current unlocked lesson first.'},
+            status=status.HTTP_409_CONFLICT,
+        )
 
     res = record_lesson_completion(
         user=user,

@@ -64,7 +64,9 @@ let wakePromise: Promise<boolean> | null = null;
 
 export function startBackendWake(maxAttempts = 20): Promise<boolean> {
   if (!wakePromise) {
-    wakePromise = wakeBackend(maxAttempts);
+    wakePromise = wakeBackend(maxAttempts).finally(() => {
+      wakePromise = null;
+    });
   }
   return wakePromise;
 }
