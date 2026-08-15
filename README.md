@@ -1,5 +1,4 @@
 # Duolingo Web App Clone
-
 A full-stack, visually and functionally near-identical clone of the Duolingo language learning web app built for an SDE Fullstack evaluation. 
 
 The application runs end-to-end with pre-seeded data, featuring a snake-style winding learning path, 5 interactive exercise types, real timestamp-based heart regeneration, unit-testable daily streak logic, learner profiles, weekly leaderboards, and gamification achievements.
